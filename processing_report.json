@@ -1,0 +1,66 @@
+{
+  "timestamp": "2026-02-16T16:35:35.811701",
+  "status": "success",
+  "files_generated": [
+    "AppWeb_nsg_rules.tfvars",
+    "Database_nsg_rules.tfvars"
+  ],
+  "errors": [],
+  "transformations": [
+    {
+      "row": 2,
+      "field": "Priority",
+      "original": "(blank)",
+      "fixed": 1000,
+      "type": "invalid_format_fix"
+    },
+    {
+      "row": 2,
+      "rule": "Fixes spaces and per",
+      "field": "Destination Port",
+      "original": "80. 443",
+      "fixed": "80,443",
+      "type": "typo_fix"
+    },
+    {
+      "row": 3,
+      "field": "Priority",
+      "original": "(blank)",
+      "fixed": 1010,
+      "type": "invalid_format_fix"
+    },
+    {
+      "row": 4,
+      "field": "Priority",
+      "original": "(blank)",
+      "fixed": 1000,
+      "type": "invalid_format_fix"
+    },
+    {
+      "row": 4,
+      "rule": "Independent priority",
+      "field": "Destination Port",
+      "original": "53. 123",
+      "fixed": "53,123",
+      "type": "typo_fix"
+    },
+    {
+      "row": 6,
+      "field": "Priority",
+      "original": "(blank)",
+      "fixed": 1000,
+      "type": "invalid_format_fix"
+    },
+    {
+      "row": 7,
+      "field": "Priority",
+      "original": "(blank)",
+      "fixed": 1010,
+      "type": "invalid_format_fix"
+    }
+  ],
+  "summary": {
+    "total_rules": 6,
+    "fixed_typos": 2
+  }
+}
