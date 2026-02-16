@@ -112,7 +112,7 @@ def generate_nsg_tfvars(excel_path, start_priority=1000, dry_run=False):
                     # We don't log every auto-priority as a "fix", but we could.
                 else:
                     prio_val = int(float(row['Priority']))
-            except:
+            except (ValueError, TypeError):
                 prio_val = prio_counters[dir_short]
                 prio_counters[dir_short] += 10
                 report["transformations"].append({
