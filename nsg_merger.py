@@ -50,21 +50,16 @@ def parse_arguments():
     parser.add_argument("--repo-root", default=".", help="Root directory of the Terraform repository (default: current dir)")
     return parser.parse_args()
 
-def find_existing_file(subnet_name: str, tfvars_dir: str) -> Optional[str]:
+def find_existing_file(subnet_name: str, valid_files: List[str]) -> Optional[str]:
     """
     Locates the source-of-truth file for a given subnet using fuzzy matching.
     
     LOGIC:
       - Normalizes subnet name (removes special chars).
-      - Matches against filenames in the tfvars directory.
+      - Matches against filenames in the provided list.
       - Explicitly ignores files with '_updated' to prevent chaining edits on temporary files.
     """
     safe_name = re.sub(r'[^a-zA-Z0-9]', '', str(subnet_name)).lower()
-    
-    # AI_NOTE: glob is used here for simple filesystem traversal. 
-    # If repo grows >1000 files, switch to os.scandir for performance.
-    all_files = glob.glob(os.path.join(tfvars_dir, "*.auto.tfvars"))
-    valid_files = [f for f in all_files if OUTPUT_SUFFIX not in f]
     
     for file_path in valid_files:
         filename = os.path.basename(file_path).lower()
@@ -166,6 +161,11 @@ def merge_nsg_rules(excel_path: str, repo_root: str):
         return re.sub(r'\s+', '', str(val)).strip(',')
 
     # --- Main Processing Loop ---
+    # AI_NOTE: glob is used here for simple filesystem traversal.
+    # If repo grows >1000 files, switch to os.scandir for performance.
+    all_files = glob.glob(os.path.join(tfvars_dir, "*.auto.tfvars"))
+    valid_files = [f for f in all_files if OUTPUT_SUFFIX not in f]
+
     grouped = df.groupby('Azure Subnet Name')
 
     for subnet_raw, rules in grouped:
@@ -174,7 +174,7 @@ def merge_nsg_rules(excel_path: str, repo_root: str):
         print(f"\nProcessing Subnet: {subnet_raw}")
         
         # 1. Identify Source File
-        existing_file = find_existing_file(subnet_raw, tfvars_dir)
+        existing_file = find_existing_file(subnet_raw, valid_files)
         
         prio_counters = {"IN": START_PRIORITY, "OUT": START_PRIORITY}
         base_content = ""
