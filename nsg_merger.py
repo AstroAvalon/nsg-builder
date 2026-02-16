@@ -227,7 +227,7 @@ def merge_nsg_rules(excel_path: str, repo_root: str):
                     prio_counters[dir_short] += PRIORITY_STEP
                 else:
                     prio_val = int(float(row['Priority']))
-            except:
+            except (ValueError, TypeError):
                 prio_val = prio_counters[dir_short]
                 prio_counters[dir_short] += PRIORITY_STEP
 
