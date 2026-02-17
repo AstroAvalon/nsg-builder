@@ -37,6 +37,13 @@ OUTPUT_SUFFIX = "_updated"
 START_PRIORITY = 1000
 PRIORITY_STEP = 10
 
+# --- PRE-COMPILED REGEXES ---
+RE_ALPHANUMERIC = re.compile(r'[^a-zA-Z0-9]')
+RE_PRIORITY = re.compile(r'priority\s*=\s*(\d+)')
+RE_DIRECTION = re.compile(r'direction\s*=\s*"(\w+)"', re.IGNORECASE)
+RE_DOT_BETWEEN_NUMBERS = re.compile(r'(\d)\s*\.\s*(\d)')
+RE_WHITESPACE = re.compile(r'\s+')
+
 def parse_arguments():
     """
     Parses CLI arguments to allow running this script from a central 'tools' repo.
@@ -59,7 +66,7 @@ def find_existing_file(subnet_name: str, valid_files: List[str]) -> Optional[str
       - Matches against filenames in the provided list.
       - Explicitly ignores files with '_updated' to prevent chaining edits on temporary files.
     """
-    safe_name = re.sub(r'[^a-zA-Z0-9]', '', str(subnet_name)).lower()
+    safe_name = RE_ALPHANUMERIC.sub('', str(subnet_name)).lower()
     
     for file_path in valid_files:
         filename = os.path.basename(file_path).lower()
@@ -88,9 +95,9 @@ def get_next_priorities(file_path: str) -> Tuple[Dict[str, int], str]:
         
         for block in blocks:
             # Extract Priority
-            prio_match = re.search(r'priority\s*=\s*(\d+)', block)
+            prio_match = RE_PRIORITY.search(block)
             # Extract Direction
-            dir_match = re.search(r'direction\s*=\s*"(\w+)"', block, re.IGNORECASE)
+            dir_match = RE_DIRECTION.search(block)
             
             if prio_match and dir_match:
                 prio = int(prio_match.group(1))
@@ -152,13 +159,13 @@ def merge_nsg_rules(excel_path: str, repo_root: str):
         if pd.isna(val) or str(val).strip().lower() in ["", "any", "all", "*"]: return "*"
         
         # Regex to find dots between numbers (handling spaces)
-        cleaned = re.sub(r'(\d)\s*\.\s*(\d)', r'\1,\2', str(val))
-        return re.sub(r'\s+', '', cleaned).replace(',,', ',').strip(',')
+        cleaned = RE_DOT_BETWEEN_NUMBERS.sub(r'\1,\2', str(val))
+        return RE_WHITESPACE.sub('', cleaned).replace(',,', ',').strip(',')
 
     def clean_ip(val: str) -> str:
         """Removes spaces from IP lists."""
         if pd.isna(val) or str(val).strip().lower() in ["", "any", "all", "*"]: return "*"
-        return re.sub(r'\s+', '', str(val)).strip(',')
+        return RE_WHITESPACE.sub('', str(val)).strip(',')
 
     # --- Main Processing Loop ---
     # AI_NOTE: glob is used here for simple filesystem traversal.
@@ -206,7 +213,7 @@ def merge_nsg_rules(excel_path: str, repo_root: str):
             
         else:
             # --- NEW FILE LOGIC (Clean Creation) ---
-            clean_name = re.sub(r'[^a-zA-Z0-9]', '', str(subnet_raw))
+            clean_name = RE_ALPHANUMERIC.sub('', str(subnet_raw))
             # AI_NOTE: New files strictly follow `nsg_{name}.auto.tfvars` naming convention.
             new_filename = os.path.join(tfvars_dir, f"nsg_{clean_name.lower()}.auto.tfvars")
             base_content = f"{clean_name}_nsg_rules = ["
@@ -235,7 +242,7 @@ def merge_nsg_rules(excel_path: str, repo_root: str):
             dir_api = api_map.get(raw_dir, "Inbound")
             access_api = api_map.get(str(row['Access']).upper().strip(), "Allow")
             proto_api = api_map.get(str(row['Protocol']).upper().strip(), "Tcp")
-            clean_subnet_name = re.sub(r'[^a-zA-Z0-9]', '', str(subnet_raw))
+            clean_subnet_name = RE_ALPHANUMERIC.sub('', str(subnet_raw))
             
             # Generate Rule Name (Strict Convention)
             rule_name = f"{clean_subnet_name}_{dir_short}_{access_api}{prio_val}"
