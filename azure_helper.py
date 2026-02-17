@@ -7,6 +7,7 @@ Handles parsing of Terraform variables and interaction with Azure APIs (mock-fri
 import re
 import os
 import json
+import subprocess
 from typing import Dict, Optional, List, Tuple
 from collections import namedtuple
 
@@ -123,19 +124,38 @@ def fetch_azure_nsg_rules(
     Mock-friendly: Uses try-import for Azure libraries.
     """
     try:
-        from azure.identity import DefaultAzureCredential
+        from azure.identity import AzureCliCredential
         from azure.mgmt.network import NetworkManagementClient
     except ImportError:
         print("⚠️ Azure libraries not installed. Skipping live check.")
         return []
 
     try:
-        credential = DefaultAzureCredential()
+        credential = AzureCliCredential()
+
         # If subscription_id is not provided, use default from credential (if possible) or raise error
         # In a real scenario, subscription_id is crucial. Assuming it's passed or available in env.
         if not subscription_id:
-            # Attempt to get subscription from environment variable if set, else explicit argument needed
+            # Attempt to get subscription from environment variable if set
             subscription_id = os.environ.get("AZURE_SUBSCRIPTION_ID")
+
+            # If still missing, try to fetch from active az login session
+            if not subscription_id:
+                try:
+                    result = subprocess.run(
+                        ["az", "account", "show", "--query", "id", "-o", "tsv"],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
+                    subscription_id = result.stdout.strip()
+                    print(f"ℹ️  Using active Azure Subscription: {subscription_id}")
+                except (subprocess.CalledProcessError, FileNotFoundError):
+                    print(
+                        "❌ Error: 'az' CLI not found or not logged in. Please run 'az login'."
+                    )
+                    return []
+
             if not subscription_id:
                 print("⚠️ No Subscription ID provided for Azure check.")
                 return []
@@ -168,5 +188,10 @@ def fetch_azure_nsg_rules(
         return rules
 
     except Exception as e:
-        print(f"❌ Azure API Error for {nsg_name}: {e}")
+        if "CredentialUnavailableError" in str(type(e)) or "az login" in str(e).lower():
+            print(
+                "❌ Azure Authentication Failed. Please run 'az login' to authenticate."
+            )
+        else:
+            print(f"❌ Azure API Error for {nsg_name}: {e}")
         return []

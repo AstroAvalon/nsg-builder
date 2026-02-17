@@ -65,7 +65,7 @@ class TestAzureHelper(unittest.TestCase):
     def test_fetch_azure_nsg_rules(self):
         # Since imports are inside the function, we patch where they come from (mocked modules)
         mock_client = sys.modules["azure.mgmt.network"].NetworkManagementClient
-        mock_cred = sys.modules["azure.identity"].DefaultAzureCredential
+        mock_cred = sys.modules["azure.identity"].AzureCliCredential
 
         # Setup Mock Client
         mock_nsg_client = mock_client.return_value.network_security_groups
@@ -92,6 +92,51 @@ class TestAzureHelper(unittest.TestCase):
         self.assertEqual(len(rules), 1)
         self.assertEqual(rules[0].priority, 100)
         self.assertEqual(rules[0].name, "rule1")
+
+    @patch("azure_helper.subprocess.run")
+    def test_fetch_subscription_id_via_cli(self, mock_subprocess):
+        # Setup mock for successful az login check
+        mock_result = MagicMock()
+        mock_result.stdout = "sub-12345"
+        mock_subprocess.return_value = mock_result
+
+        # Ensure imports inside function use our mocks
+        # sys.modules mocks are global, so they persist from top of file
+        mock_cred = sys.modules["azure.identity"].AzureCliCredential
+
+        # Call function without explicit subscription ID
+        # We need to ensure os.environ doesn't have it
+        with patch.dict(os.environ, {}, clear=True):
+            azure_helper.fetch_azure_nsg_rules("rg", "nsg")
+
+        # Verify subprocess was called
+        mock_subprocess.assert_called_with(
+            ["az", "account", "show", "--query", "id", "-o", "tsv"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+    def test_fetch_azure_nsg_rules_auth_failure(self):
+        # Test friendly error message when not logged in
+        mock_cred = sys.modules["azure.identity"].AzureCliCredential
+
+        # Simulate Exception that looks like "az login" required
+        mock_cred.side_effect = Exception("CredentialUnavailableError: Please run az login")
+
+        with patch("builtins.print") as mock_print:
+            azure_helper.fetch_azure_nsg_rules("rg", "nsg", "sub1")
+
+            # Check for friendly message
+            found = False
+            for call in mock_print.call_args_list:
+                if "Please run 'az login'" in str(call):
+                    found = True
+                    break
+            self.assertTrue(found, "Friendly error message not printed")
+
+        # Reset side effect
+        mock_cred.side_effect = None
 
 
 class TestNSGMerger(unittest.TestCase):
