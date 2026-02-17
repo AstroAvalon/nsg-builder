@@ -27,16 +27,24 @@ resource "azurerm_network_security_rule" "rules" {
 
   resource_group_name         = var.resource_group_name
   network_security_group_name = azurerm_network_security_group.nsg[0].name
-  
-  name                        = each.value.name
-  priority                    = each.value.priority
-  direction                   = each.value.direction
-  access                      = each.value.access
-  protocol                    = each.value.protocol
-  source_port_range           = each.value.source_port_range
-  destination_port_range      = each.value.destination_port_range
-  source_address_prefix       = each.value.source_address_prefix
-  destination_address_prefix  = each.value.destination_address_prefix
+
+  name      = each.value.name
+  priority  = each.value.priority
+  direction = each.value.direction
+  access    = each.value.access
+  protocol  = each.value.protocol
+
+  source_port_range  = length(regexall(",", each.value.source_port_range)) > 0 ? null : each.value.source_port_range
+  source_port_ranges = length(regexall(",", each.value.source_port_range)) > 0 ? split(",", each.value.source_port_range) : null
+
+  destination_port_range  = length(regexall(",", each.value.destination_port_range)) > 0 ? null : each.value.destination_port_range
+  destination_port_ranges = length(regexall(",", each.value.destination_port_range)) > 0 ? split(",", each.value.destination_port_range) : null
+
+  source_address_prefix   = length(regexall(",", each.value.source_address_prefix)) > 0 ? null : each.value.source_address_prefix
+  source_address_prefixes = length(regexall(",", each.value.source_address_prefix)) > 0 ? split(",", each.value.source_address_prefix) : null
+
+  destination_address_prefix   = length(regexall(",", each.value.destination_address_prefix)) > 0 ? null : each.value.destination_address_prefix
+  destination_address_prefixes = length(regexall(",", each.value.destination_address_prefix)) > 0 ? split(",", each.value.destination_address_prefix) : null
 }
 
 # 4. Associate NSG to Subnet
