@@ -45,3 +45,19 @@ variable "AppTools_nsg_rules" {
   }))
   default = []
 }
+
+variable "AppPrivateLink_nsg_rules" {
+  description = "NSG rules for the Tools tier"
+  type = list(object({
+    name                       = string
+    priority                   = number
+    direction                  = string
+    access                     = string
+    protocol                   = string
+    source_port_range          = string
+    destination_port_range     = string
+    source_address_prefix      = string
+    destination_address_prefix = string
+  }))
+  default = []
+}
