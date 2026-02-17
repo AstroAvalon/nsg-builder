@@ -4,6 +4,7 @@
 # .tfstate files (CRITICAL: Never commit these!)
 *.tfstate
 *.tfstate.*
+tfplan
 
 # Crash log files
 crash.log
