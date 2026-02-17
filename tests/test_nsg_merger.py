@@ -51,16 +51,36 @@ class TestAzureHelper(unittest.TestCase):
         rg = azure_helper.get_resource_group_name(vars)
         self.assertEqual(rg, "rg-customer-cli-loc-env-network")
 
-    def test_parse_subnet_names(self):
-        content = 'variable "subnet_names" { default = { "AppDB" = "subnet-db" } }'
+    def test_parse_subnet_config(self):
+        content = """
+locals {
+  subnet_config = {
+    AppDB = {
+      name = "subnet-db"
+      has_nsg = true
+    }
+    AppWeb = {
+      name = "subnet-web"
+      has_nsg = false
+    }
+  }
+}
+"""
         with patch("builtins.open", mock_open(read_data=content)):
             with patch("os.path.exists", return_value=True):
-                subnets = azure_helper.parse_subnet_names_tf("dummy.tf")
-                self.assertEqual(subnets["AppDB"], "subnet-db")
+                subnets = azure_helper.parse_subnet_config("dummy.tf")
+
+                # Check AppDB
+                self.assertEqual(subnets["AppDB"]["name"], "subnet-db")
+                self.assertTrue(subnets["AppDB"]["has_nsg"])
+
+                # Check AppWeb (second entry, was failing before)
+                self.assertEqual(subnets["AppWeb"]["name"], "subnet-web")
+                self.assertFalse(subnets["AppWeb"]["has_nsg"])
 
     def test_get_nsg_name(self):
         nsg = azure_helper.get_nsg_name("mysubnet", "prd")
-        self.assertEqual(nsg, "NSG-prd-mysubnet")
+        self.assertEqual(nsg, "NSG-PRD-mysubnet")
 
     def test_fetch_azure_nsg_rules(self):
         # Since imports are inside the function, we patch where they come from (mocked modules)
@@ -208,8 +228,8 @@ class TestNSGMerger(unittest.TestCase):
                 "environment_level": "e",
             },
         ), patch(
-            "azure_helper.parse_subnet_names_tf",
-            return_value={"AppSubnet": "AppSubnet"},
+            "azure_helper.parse_subnet_config",
+            return_value={"AppSubnet": {"name": "AppSubnet", "has_nsg": True}},
         ), patch(
             "os.path.exists", return_value=True
         ), patch(

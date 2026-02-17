@@ -135,18 +135,18 @@ def merge_nsg_rules(excel_path: str, repo_root: str):
     # 1. Load Project Configuration & Subnet Names
     print("ℹ️ Loading Project Configuration...")
     project_vars_path = os.path.join(repo_root, "tfvars", "project.auto.tfvars")
-    network_names_path = os.path.join(repo_root, "data_network_names.tf")
+    locals_tf_path = os.path.join(repo_root, "locals.tf")
 
     project_vars = (
         azure_helper.parse_project_tfvars(project_vars_path) if azure_helper else {}
     )
-    subnet_names_map = (
-        azure_helper.parse_subnet_names_tf(network_names_path) if azure_helper else {}
+    subnet_config = (
+        azure_helper.parse_subnet_config(locals_tf_path) if azure_helper else {}
     )
 
-    if not project_vars or not subnet_names_map:
+    if not project_vars or not subnet_config:
         print(
-            "   ⚠️  Warning: Could not load project variables or subnet names. Azure integration might be limited."
+            "   ⚠️  Warning: Could not load project variables or subnet configuration. Azure integration might be limited."
         )
 
     # Load Excel
@@ -243,39 +243,62 @@ def merge_nsg_rules(excel_path: str, repo_root: str):
             try:
                 # Resolve proper names
                 rg_name = azure_helper.get_resource_group_name(project_vars)
-                # Check if subnet name exists in map, else use raw
-                tf_subnet_key = next(
-                    (k for k, v in subnet_names_map.items() if v == subnet_raw),
-                    subnet_raw,
-                )
-                nsg_name = azure_helper.get_nsg_name(
-                    tf_subnet_key, project_vars.get("environment_level")
-                )
 
-                sub_id = project_vars.get("customer_subscription_id")
+                # Determine TF Subnet Key and NSG Status via Fuzzy Match
+                tf_subnet_key = subnet_raw
+                has_nsg = True
 
-                print(f"   🔍 Querying Azure NSG: {nsg_name} (RG: {rg_name})")
-                azure_rules = azure_helper.fetch_azure_nsg_rules(
-                    rg_name, nsg_name, sub_id
-                )
+                def normalize(s):
+                    return RE_ALPHANUMERIC.sub("", str(s)).lower()
 
-                for az_rule in azure_rules:
-                    if az_rule.priority in used_priorities:
-                        # CONFLICT CHECK: We just know ID exists.
-                        # Deep comparison is hard without parsing HCL fully.
-                        # For now, we assume if ID exists in file, it is the intent.
-                        # If Azure has different content, it's a conflict, but we just warn.
-                        # Strict requirement: "ensure priorities aren't conflicting"
-                        pass
-                    else:
-                        # DRIFT: Rule exists in Azure but not in File
-                        print(
-                            f"   ⚠️  DRIFT DETECTED: Found Priority {az_rule.priority} in Azure (missing in local). Importing..."
-                        )
-                        drift_rules.append(az_rule)
-                        used_priorities.add(
-                            az_rule.priority
-                        )  # Mark as used so we don't overwrite it below
+                norm_raw = normalize(subnet_raw)
+                found_key = None
+
+                # 1. Exact Key Match
+                if subnet_raw in subnet_config:
+                    found_key = subnet_raw
+                else:
+                    # 2. Normalized Search (Key or Name)
+                    for k, v in subnet_config.items():
+                        if normalize(k) == norm_raw or normalize(v.get("name", "")) == norm_raw:
+                            found_key = k
+                            break
+
+                if found_key:
+                    tf_subnet_key = found_key
+                    has_nsg = subnet_config[found_key].get("has_nsg", True)
+
+                if not has_nsg:
+                    print(f"   ℹ️  Subnet '{subnet_raw}' is configured with has_nsg=false. Skipping Azure check.")
+                else:
+                    nsg_name = azure_helper.get_nsg_name(
+                        tf_subnet_key, project_vars.get("environment_level")
+                    )
+
+                    sub_id = project_vars.get("customer_subscription_id")
+
+                    print(f"   🔍 Querying Azure NSG: {nsg_name} (RG: {rg_name})")
+                    azure_rules = azure_helper.fetch_azure_nsg_rules(
+                        rg_name, nsg_name, sub_id
+                    )
+
+                    for az_rule in azure_rules:
+                        if az_rule.priority in used_priorities:
+                            # CONFLICT CHECK: We just know ID exists.
+                            # Deep comparison is hard without parsing HCL fully.
+                            # For now, we assume if ID exists in file, it is the intent.
+                            # If Azure has different content, it's a conflict, but we just warn.
+                            # Strict requirement: "ensure priorities aren't conflicting"
+                            pass
+                        else:
+                            # DRIFT: Rule exists in Azure but not in File
+                            print(
+                                f"   ⚠️  DRIFT DETECTED: Found Priority {az_rule.priority} in Azure (missing in local). Importing..."
+                            )
+                            drift_rules.append(az_rule)
+                            used_priorities.add(
+                                az_rule.priority
+                            )  # Mark as used so we don't overwrite it below
 
             except Exception as e:
                 print(f"   ❌ Azure Check Failed: {e}")
