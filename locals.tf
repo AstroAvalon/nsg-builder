@@ -1,27 +1,30 @@
 locals {
-  # 1. THE BLUEPRINT: Define names and NSG status in one combined map
+  # 1. Lock the order so AppDatabase doesn't steal index 0 from the Gateway
+  subnet_order = ["GatewaySubnet", "AppWeb", "AppDatabase", "AppTools", "AppPrivateLink"]
+
+  # 2. Map the data
   subnet_config = {
-    GatewaySubnet  = { name = "GatewaySubnet",  has_nsg = false, newbits = 3 } # /27
-    AppWeb         = { name = "AppWeb",         has_nsg = true,  newbits = 4 } # /28
-    AppDatabase    = { name = "AppDatabase",    has_nsg = true,  max_nsg = 4 } # /28
-    AppTools       = { name = "AppTools",       has_nsg = true,  newbits = 4 } # /28
-    AppPrivateLink = { name = "AppPrivateLink", has_nsg = true,  newbits = 4 } # /28
+    GatewaySubnet  = { name = "GatewaySubnet",  has_nsg = false }
+    AppWeb         = { name = "AppWeb",         has_nsg = true  }
+    AppDatabase    = { name = "AppDatabase",    has_nsg = true  }
+    AppTools       = { name = "AppTools",       has_nsg = true  }
+    AppPrivateLink = { name = "AppPrivateLink", has_nsg = true  }
   }
 
-  # 2. CIDR SLICING: Create the CIDRs based on the order above
-  # We use the keys from subnet_config to keep the order stable.
-  subnet_keys_ordered = keys(local.subnet_config)
-  
-  # This slices the /24 into one /27 and four /28s
+  # 3. Calculate CIDRs (Indices 0=3, 1=4, 2=4, 3=4, 4=4)
   calculated_cidrs = cidrsubnets(var.project.address_space[0], 3, 4, 4, 4, 4)
 
-  # 3. RULE MAPPING: Map your variables to the keys
+  # 4. Map names to their calculated IPs
+  subnet_with_cidr = {
+    for i, key in local.subnet_order : key => local.calculated_cidrs[i]
+  }
+
   subnet_rules = {
-      "AppWeb"         = var.AppWeb_nsg_rules
-      "AppDatabase"    = var.AppDatabase_nsg_rules
-      "AppTools"       = var.AppTools_nsg_rules
-      "AppPrivateLink" = []
-      "GatewaySubnet"  = [] 
+    "AppWeb"         = var.AppWeb_nsg_rules
+    "AppDatabase"    = var.AppDatabase_nsg_rules
+    "AppTools"       = var.AppTools_nsg_rules
+    "AppPrivateLink" = []
+    "GatewaySubnet"  = [] 
   }
 
   # Base naming convention: customer-client-loc-env (e.g., lab-astlab-wus-dr)
@@ -40,5 +43,12 @@ locals {
   }
 
   # Virtual Network Name
-  vnet_name = "${local.base_rg_name}-vnet"
+
+  vnet_name = lower(join("-", [
+    "vnet",
+    var.project.customer,
+    var.project.client_code,
+    var.project.location,
+    var.project.environment_level
+  ]))
 }
