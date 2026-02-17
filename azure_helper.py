@@ -29,7 +29,7 @@ AzureRule = namedtuple(
 def parse_project_tfvars(filepath: str) -> Dict[str, str]:
     """
     Parses 'project.auto.tfvars' to extract project-level variables.
-    Format: key = "value"
+    Handles 'project = { ... }' block structure.
     """
     variables = {}
     if not os.path.exists(filepath):
@@ -39,10 +39,21 @@ def parse_project_tfvars(filepath: str) -> Dict[str, str]:
     with open(filepath, "r") as f:
         content = f.read()
 
-    # Regex to capture simple key = "value" pairs
-    matches = re.findall(r'(\w+)\s*=\s*"(.*?)"', content)
-    for key, value in matches:
-        variables[key] = value
+    # Find the project block: project = { ... }
+    # Using DOTALL to match across lines
+    project_match = re.search(r"project\s*=\s*\{(.*?)\}", content, re.DOTALL)
+
+    if project_match:
+        inner_content = project_match.group(1)
+        # Extract key-value pairs inside the block
+        pairs = re.findall(r'(\w+)\s*=\s*"(.*?)"', inner_content)
+        for key, value in pairs:
+            variables[key] = value
+    else:
+        # Fallback for simple key="value" if project block not found (backward compat)
+        matches = re.findall(r'(\w+)\s*=\s*"(.*?)"', content)
+        for key, value in matches:
+            variables[key] = value
 
     return variables
 
@@ -85,13 +96,14 @@ def parse_subnet_names_tf(filepath: str) -> Dict[str, str]:
 def get_resource_group_name(vars: Dict[str, str]) -> str:
     """
     Constructs Resource Group name: rg-{customer}-{client_code}-{location}-{environment_level}-network
+    Forces all components to lowercase.
     """
     required = ["customer", "client_code", "location", "environment_level"]
     missing = [k for k in required if k not in vars]
     if missing:
         raise ValueError(f"Missing required variables for RG construction: {missing}")
 
-    return f"rg-{vars['customer']}-{vars['client_code']}-{vars['location']}-{vars['environment_level']}-network"
+    return f"rg-{vars['customer'].lower()}-{vars['client_code'].lower()}-{vars['location'].lower()}-{vars['environment_level'].lower()}-network"
 
 
 def get_nsg_name(subnet_name: str, env_level: str) -> str:

@@ -25,12 +25,31 @@ import nsg_merger
 class TestAzureHelper(unittest.TestCase):
 
     def test_parse_project_tfvars(self):
-        content = 'customer = "contoso"\nlocation = "eastus"\nclient_code = "app1"\nenvironment_level = "prd"'
+        # Test updated block parsing: project = { ... }
+        content = """
+        project = {
+          customer          = "Contoso"
+          location          = "EastUS"
+          client_code       = "App1"
+          environment_level = "Prd"
+        }
+        """
         with patch("builtins.open", mock_open(read_data=content)):
             with patch("os.path.exists", return_value=True):
                 vars = azure_helper.parse_project_tfvars("dummy.tfvars")
-                self.assertEqual(vars["customer"], "contoso")
-                self.assertEqual(vars["location"], "eastus")
+                self.assertEqual(vars["customer"], "Contoso")
+                self.assertEqual(vars["location"], "EastUS")
+
+    def test_get_resource_group_name(self):
+        # Test lowercase enforcement
+        vars = {
+            "customer": "CuStOmEr",
+            "client_code": "CLI",
+            "location": "LOC",
+            "environment_level": "ENV",
+        }
+        rg = azure_helper.get_resource_group_name(vars)
+        self.assertEqual(rg, "rg-customer-cli-loc-env-network")
 
     def test_parse_subnet_names(self):
         content = 'variable "subnet_names" { default = { "AppDB" = "subnet-db" } }'
@@ -38,16 +57,6 @@ class TestAzureHelper(unittest.TestCase):
             with patch("os.path.exists", return_value=True):
                 subnets = azure_helper.parse_subnet_names_tf("dummy.tf")
                 self.assertEqual(subnets["AppDB"], "subnet-db")
-
-    def test_get_resource_group_name(self):
-        vars = {
-            "customer": "cust",
-            "client_code": "cli",
-            "location": "loc",
-            "environment_level": "env",
-        }
-        rg = azure_helper.get_resource_group_name(vars)
-        self.assertEqual(rg, "rg-cust-cli-loc-env-network")
 
     def test_get_nsg_name(self):
         nsg = azure_helper.get_nsg_name("mysubnet", "prd")

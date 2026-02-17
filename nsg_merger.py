@@ -255,7 +255,9 @@ def merge_nsg_rules(excel_path: str, repo_root: str):
                 sub_id = project_vars.get("customer_subscription_id")
 
                 print(f"   🔍 Querying Azure NSG: {nsg_name} (RG: {rg_name})")
-                azure_rules = azure_helper.fetch_azure_nsg_rules(rg_name, nsg_name, sub_id)
+                azure_rules = azure_helper.fetch_azure_nsg_rules(
+                    rg_name, nsg_name, sub_id
+                )
 
                 for az_rule in azure_rules:
                     if az_rule.priority in used_priorities:
