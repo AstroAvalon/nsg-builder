@@ -59,37 +59,61 @@ def parse_project_tfvars(filepath: str) -> Dict[str, str]:
     return variables
 
 
-def parse_subnet_names_tf(filepath: str) -> Dict[str, str]:
+def parse_subnet_config(filepath: str) -> Dict[str, Dict]:
     """
-    Parses 'data_network_names.tf' to extract the 'subnet_names' map.
-    Format:
-    variable "subnet_names" {
-      type = map(string)
-      default = {
-        "Key" = "Value"
-      }
+    Parses 'locals.tf' to extract the 'subnet_config' map.
+    Returns a dictionary of subnet configurations:
+    {
+        "SubnetKey": { "name": "Name", "has_nsg": True/False, ... }
     }
     """
     subnets = {}
     if not os.path.exists(filepath):
-        print(f"⚠️ Warning: data_network_names.tf not found at {filepath}")
+        print(f"⚠️ Warning: locals.tf not found at {filepath}")
         return subnets
 
     with open(filepath, "r") as f:
         content = f.read()
 
-    # Find the subnet_names block
-    block_match = re.search(
-        r'variable\s+"subnet_names"\s*\{.*?default\s*=\s*\{(.*?)\}\s*\}',
-        content,
-        re.DOTALL,
-    )
-    if block_match:
-        inner_content = block_match.group(1)
-        # Extract key-value pairs inside the map
-        pairs = re.findall(r'"(.*?)"\s*=\s*"(.*?)"', inner_content)
-        for key, value in pairs:
-            subnets[key] = value
+    # Find the start of the subnet_config block
+    start_match = re.search(r'subnet_config\s*=\s*\{', content)
+    if not start_match:
+        return subnets
+
+    start_idx = start_match.end()
+    inner_content = ""
+    brace_count = 1  # We already found the opening brace
+
+    # Iterate through remaining content to find the matching closing brace
+    for char in content[start_idx:]:
+        if char == '{':
+            brace_count += 1
+        elif char == '}':
+            brace_count -= 1
+
+        if brace_count == 0:
+            break
+        inner_content += char
+
+    # Now parse the inner content
+    # Parse each entry like: Key = { name = "Val", has_nsg = true/false, ... }
+    entries = re.findall(r'(\w+)\s*=\s*\{(.*?)\}', inner_content, re.DOTALL)
+
+    for key, props_str in entries:
+        props = {}
+        # Extract name
+        name_match = re.search(r'name\s*=\s*"([^"]+)"', props_str)
+        if name_match:
+            props["name"] = name_match.group(1)
+
+        # Extract has_nsg
+        nsg_match = re.search(r'has_nsg\s*=\s*(true|false)', props_str)
+        if nsg_match:
+            props["has_nsg"] = nsg_match.group(1) == "true"
+        else:
+            props["has_nsg"] = False  # Default or fallback
+
+        subnets[key] = props
 
     return subnets
 
@@ -110,10 +134,11 @@ def get_resource_group_name(vars: Dict[str, str]) -> str:
 def get_nsg_name(subnet_name: str, env_level: str) -> str:
     """
     Constructs NSG name: NSG-{environment_level}-{subnet_name}
+    Ensures environment level is uppercase.
     """
     if not env_level:
         raise ValueError("Environment Level is required for NSG name construction")
-    return f"NSG-{env_level}-{subnet_name}"
+    return f"NSG-{env_level.upper()}-{subnet_name}"
 
 
 def fetch_azure_nsg_rules(

@@ -26,6 +26,7 @@ locals {
 
   # Base naming convention: customer-client-loc-env (e.g., lab-astlab-wus-dr)
   base_rg_name = lower(join("-", [
+    "rg",
     var.project.customer,
     var.project.client_code,
     var.project.location,
