@@ -1,0 +1,32 @@
+# Local .terraform directories (plugins, modules, etc)
+**/.terraform/*
+
+# .tfstate files (CRITICAL: Never commit these!)
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# Ignore the lock file (Per your request to ignore "hcl files")
+# Note: Standard practice is often to COMMIT this file to lock provider versions,
+# but since you asked to exclude it, it is listed here.
+.terraform.lock.hcl
+
+# Ignore all other HCL files if you are using them for local-only config
+# (Be careful if you use Packer or Nomad in this repo!)
+*.hcl
+
+# Ignore plan output files (binary)
+*.tfplan
+
+# Editor/IDE specific files
+.idea/
+.vscode/
+*.swp
+.DS_Store

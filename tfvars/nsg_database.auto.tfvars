@@ -14,7 +14,7 @@ Database_nsg_rules = [
   },
   {
     name                       = "Database_IN_Allow1010"
-    description                = "Testing "Any" protocol and spacey commas"
+    description                = "Testing protocol and spacey commas"
     priority                   = 1010
     direction                  = "Inbound"
     access                     = "Allow"
