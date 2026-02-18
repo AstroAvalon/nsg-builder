@@ -1,5 +1,5 @@
 AppWeb_nsg_rules = [
-  # --- New Rules Added via Automation 2026-02-17 15:57 ---
+  # --- New Rules Added via Automation 2026-02-17 17:25 ---
   {
     name                       = "AppWeb_IN_Allow1000"
     description                = "Allow HTTPS from Load Balancer/Internet"

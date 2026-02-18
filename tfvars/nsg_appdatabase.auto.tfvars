@@ -1,5 +1,5 @@
 AppDatabase_nsg_rules = [
-  # --- New Rules Added via Automation 2026-02-17 15:57 ---
+  # --- New Rules Added via Automation 2026-02-17 17:25 ---
   {
     name                       = "AppDatabase_IN_Allow1000"
     description                = "SQL Access from AppWeb tier"
