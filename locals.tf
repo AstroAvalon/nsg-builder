@@ -4,11 +4,11 @@ locals {
 
   # 2. Map the data
   subnet_config = {
-    GatewaySubnet  = { name = "GatewaySubnet",  has_nsg = false }
-    AppWeb         = { name = "AppWeb",         has_nsg = true  }
-    AppDatabase    = { name = "AppDatabase",    has_nsg = true  }
-    AppTools       = { name = "AppTools",       has_nsg = true  }
-    AppPrivateLink = { name = "AppPrivateLink", has_nsg = true  }
+    GatewaySubnet  = { name = "GatewaySubnet",  has_nsg = false, service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
+    AppWeb         = { name = "AppWeb",         has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
+    AppDatabase    = { name = "AppDatabase",    has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
+    AppTools       = { name = "AppTools",       has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
+    AppPrivateLink = { name = "AppPrivateLink", has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
   }
 
   # 3. Calculate CIDRs (Indices 0=3, 1=4, 2=4, 3=4, 4=4)

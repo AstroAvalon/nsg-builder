@@ -13,5 +13,14 @@ module "subnets" {
   # Pulling from the ordered map we built in step 4 above
   address_space       = local.subnet_with_cidr[each.key]
 
+  # New functionalities: Service Endpoints & Delegations
+  service_endpoints     = try(each.value.service_endpoints, [])
+  aks_delegation        = try(each.value.aks_delegation, false)
+  databricks_delegation = try(each.value.databricks_delegation, false)
+  postgres_delegation   = try(each.value.postgres_delegation, false)
+
+  # Private Endpoint Network Policies is defaulted to "Enabled" in module variables,
+  # but we can pass it explicitly if needed. Relying on default for now.
+
   depends_on = [ module.virtual_network ]
 }

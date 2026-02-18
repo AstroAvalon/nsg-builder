@@ -25,3 +25,36 @@ variable "nsg_rules" {
   }))
   default = [] 
 }
+
+# Service Endpoints
+variable "service_endpoints" {
+  description = "A list of service endpoints to associate with the subnet."
+  type        = list(string)
+  default     = []
+}
+
+# Private Endpoint Network Policies
+variable "private_endpoint_network_policies" {
+  description = "Enable or disable network policies for private endpoints on the subnet. Options: Enabled, Disabled."
+  type        = string
+  default     = "Enabled"
+}
+
+# Subnet Delegations
+variable "aks_delegation" {
+  description = "Enable delegation for Azure Kubernetes Service (AKS)."
+  type        = bool
+  default     = false
+}
+
+variable "databricks_delegation" {
+  description = "Enable delegation for Azure Databricks."
+  type        = bool
+  default     = false
+}
+
+variable "postgres_delegation" {
+  description = "Enable delegation for PostgreSQL Flexible Server."
+  type        = bool
+  default     = false
+}
