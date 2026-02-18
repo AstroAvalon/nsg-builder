@@ -1,30 +1,39 @@
 locals {
   # 1. Lock the order so AppDatabase doesn't steal index 0 from the Gateway
-  subnet_order = ["GatewaySubnet", "AppWeb", "AppDatabase", "AppTools", "AppPrivateLink"]
+  subnet_order = [
+    "GatewaySubnet",
+    "AppPrivateLink",
+    "AppDatabase",
+    "AppBudgetBooks",
+    "AppTestSavvy",
+    "AppMGMTTools",
+    "AppReporting"
+  ]
 
   # 2. Map the data
   subnet_config = {
-    GatewaySubnet  = { name = "GatewaySubnet",  has_nsg = false, service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
-    AppWeb         = { name = "AppWeb",         has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
-    AppDatabase    = { name = "AppDatabase",    has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
-    AppTools       = { name = "AppTools",       has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
-    AppPrivateLink = { name = "AppPrivateLink", has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
+    GatewaySubnet  = { name = "GatewaySubnet",  newbits = 3, netnum = 0,  has_nsg = false, service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
+    AppPrivateLink = { name = "AppPrivateLink", newbits = 4, netnum = 2,  has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
+    AppDatabase    = { name = "AppDatabase",    newbits = 4, netnum = 4,  has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
+    AppBudgetBooks = { name = "AppBudgetBooks", newbits = 5, netnum = 12, has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
+    AppTestSavvy   = { name = "AppTestSavvy",   newbits = 4, netnum = 8,  has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
+    AppMGMTTools   = { name = "AppMGMTTools",   newbits = 4, netnum = 10, has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
+    AppReporting   = { name = "AppReporting",   newbits = 4, netnum = 12, has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
   }
 
-  # 3. Calculate CIDRs (Indices 0=3, 1=4, 2=4, 3=4, 4=4)
-  calculated_cidrs = cidrsubnets(var.project.address_space[0], 3, 4, 4, 4, 4)
-
-  # 4. Map names to their calculated IPs
+  # 3. Calculate CIDRs dynamically using newbits and netnum
   subnet_with_cidr = {
-    for i, key in local.subnet_order : key => local.calculated_cidrs[i]
+    for key, config in local.subnet_config : key => cidrsubnet(var.project.address_space[0], config.newbits, config.netnum)
   }
 
   subnet_rules = {
-    "AppWeb"         = var.AppWeb_nsg_rules
+    "GatewaySubnet"  = []
+    "AppPrivateLink" = var.AppPrivateLink_nsg_rules
     "AppDatabase"    = var.AppDatabase_nsg_rules
-    "AppTools"       = var.AppTools_nsg_rules
-    "AppPrivateLink" = []
-    "GatewaySubnet"  = [] 
+    "AppBudgetBooks" = var.AppBudgetBooks_nsg_rules
+    "AppTestSavvy"   = var.AppTestSavvy_nsg_rules
+    "AppMGMTTools"   = var.AppMGMTTools_nsg_rules
+    "AppReporting"   = var.AppReporting_nsg_rules
   }
 
   # Base naming convention: customer-client-loc-env (e.g., lab-astlab-wus-dr)

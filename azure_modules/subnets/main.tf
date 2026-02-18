@@ -74,11 +74,11 @@ resource "azurerm_network_security_rule" "rules" {
   access    = each.value.access
   protocol  = each.value.protocol
 
-  source_port_range  = length(regexall(",", each.value.source_port_range)) > 0 ? null : each.value.source_port_range
-  source_port_ranges = length(regexall(",", each.value.source_port_range)) > 0 ? split(",", each.value.source_port_range) : null
+  source_port_range  = length(regexall(",", each.value.source_port_range)) > 0 || length(regexall("-", each.value.source_port_range)) > 0 ? null : each.value.source_port_range
+  source_port_ranges = length(regexall(",", each.value.source_port_range)) > 0 ? split(",", each.value.source_port_range) : (length(regexall("-", each.value.source_port_range)) > 0 ? [each.value.source_port_range] : null)
 
-  destination_port_range  = length(regexall(",", each.value.destination_port_range)) > 0 ? null : each.value.destination_port_range
-  destination_port_ranges = length(regexall(",", each.value.destination_port_range)) > 0 ? split(",", each.value.destination_port_range) : null
+  destination_port_range  = length(regexall(",", each.value.destination_port_range)) > 0 || length(regexall("-", each.value.destination_port_range)) > 0 ? null : each.value.destination_port_range
+  destination_port_ranges = length(regexall(",", each.value.destination_port_range)) > 0 ? split(",", each.value.destination_port_range) : (length(regexall("-", each.value.destination_port_range)) > 0 ? [each.value.destination_port_range] : null)
 
   source_address_prefix   = length(regexall(",", each.value.source_address_prefix)) > 0 ? null : each.value.source_address_prefix
   source_address_prefixes = length(regexall(",", each.value.source_address_prefix)) > 0 ? split(",", each.value.source_address_prefix) : null
