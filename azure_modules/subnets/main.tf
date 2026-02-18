@@ -4,6 +4,46 @@ resource "azurerm_subnet" "subnet" {
   resource_group_name  = var.resource_group_name
   virtual_network_name = var.network_name
   address_prefixes     = [var.address_space]
+
+  service_endpoints                 = length(var.service_endpoints) > 0 ? var.service_endpoints : null
+  private_endpoint_network_policies = var.private_endpoint_network_policies
+
+  dynamic "delegation" {
+    for_each = var.aks_delegation ? [1] : []
+    content {
+      name = "aks-delegation"
+      service_delegation {
+        name    = "Microsoft.ContainerService/managedClusters"
+        actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+      }
+    }
+  }
+
+  dynamic "delegation" {
+    for_each = var.databricks_delegation ? [1] : []
+    content {
+      name = "databricks-delegation"
+      service_delegation {
+        name    = "Microsoft.Databricks/workspaces"
+        actions = [
+          "Microsoft.Network/virtualNetworks/subnets/join/action",
+          "Microsoft.Network/virtualNetworks/subnets/prepareNetworkPolicies/action",
+          "Microsoft.Network/virtualNetworks/subnets/unprepareNetworkPolicies/action"
+        ]
+      }
+    }
+  }
+
+  dynamic "delegation" {
+    for_each = var.postgres_delegation ? [1] : []
+    content {
+      name = "postgres-delegation"
+      service_delegation {
+        name    = "Microsoft.DBforPostgreSQL/flexibleServers"
+        actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+      }
+    }
+  }
 }
 
 # 2. Create the NSG (Only if a name is provided)
