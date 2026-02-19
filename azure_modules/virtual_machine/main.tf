@@ -3,6 +3,37 @@ locals {
   data_disks_map = {
     for disk in var.data_disks : disk.lun => disk
   }
+
+  image_config = {
+    rhel = {
+      os_type   = "linux"
+      publisher = "RedHat"
+      offer     = "RHEL"
+      sku       = "8-lvm"
+      version   = "latest"
+    }
+    win22 = {
+      os_type   = "windows"
+      publisher = "MicrosoftWindowsServer"
+      offer     = "WindowsServer"
+      sku       = "2022-Datacenter"
+      version   = "latest"
+    }
+    sql = {
+      os_type   = "windows"
+      publisher = "MicrosoftSQLServer"
+      offer     = "sql2022-ws2022"
+      sku       = "sqldev"
+      version   = "latest"
+    }
+    win16 = {
+      os_type   = "windows"
+      publisher = "MicrosoftWindowsServer"
+      offer     = "WindowsServer"
+      sku       = "2016-Datacenter"
+      version   = "latest"
+    }
+  }
 }
 
 resource "azurerm_network_interface" "nic" {
@@ -21,7 +52,7 @@ resource "azurerm_network_interface" "nic" {
 
 # --- Linux Virtual Machine ---
 resource "azurerm_linux_virtual_machine" "vm" {
-  count                           = var.os_type == "linux" ? 1 : 0
+  count                           = local.image_config[var.image].os_type == "linux" ? 1 : 0
   name                            = var.vm_name
   resource_group_name             = var.resource_group_name
   location                        = var.location
@@ -48,10 +79,10 @@ resource "azurerm_linux_virtual_machine" "vm" {
   }
 
   source_image_reference {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts"
-    version   = "latest"
+    publisher = local.image_config[var.image].publisher
+    offer     = local.image_config[var.image].offer
+    sku       = local.image_config[var.image].sku
+    version   = local.image_config[var.image].version
   }
 
   identity {
@@ -63,7 +94,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
 
 # --- Windows Virtual Machine ---
 resource "azurerm_windows_virtual_machine" "vm" {
-  count               = var.os_type == "windows" ? 1 : 0
+  count               = local.image_config[var.image].os_type == "windows" ? 1 : 0
   name                = var.vm_name
   computer_name       = var.vm_name # Max 15 chars enforced by variable validation
   resource_group_name = var.resource_group_name
@@ -81,10 +112,10 @@ resource "azurerm_windows_virtual_machine" "vm" {
   }
 
   source_image_reference {
-    publisher = "MicrosoftWindowsServer"
-    offer     = "WindowsServer"
-    sku       = "2022-Datacenter"
-    version   = "latest"
+    publisher = local.image_config[var.image].publisher
+    offer     = local.image_config[var.image].offer
+    sku       = local.image_config[var.image].sku
+    version   = local.image_config[var.image].version
   }
 
   identity {

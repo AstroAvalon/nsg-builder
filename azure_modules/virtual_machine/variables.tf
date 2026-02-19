@@ -22,12 +22,12 @@ variable "vm_name" {
   }
 }
 
-variable "os_type" {
-  description = "The operating system type: 'linux' or 'windows'."
+variable "image" {
+  description = "The OS image to use. Options: 'rhel', 'win22', 'sql', 'win16'."
   type        = string
   validation {
-    condition     = contains(["linux", "windows"], var.os_type)
-    error_message = "OS type must be either 'linux' or 'windows'."
+    condition     = contains(["rhel", "win22", "sql", "win16"], var.image)
+    error_message = "Image must be one of: 'rhel', 'win22', 'sql', 'win16'."
   }
 }
 
