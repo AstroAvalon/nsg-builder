@@ -40,3 +40,12 @@ variable "region_codes" {
     WCUS = "West Central US"
   }
 }
+
+variable "region_pairs" {
+  description = "Map of primary regions to their paired secondary region."
+  type        = map(string)
+  default = {
+    WUS3 = "EUS"
+    EUS  = "WUS" # Example pair for EUS if needed
+  }
+}

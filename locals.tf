@@ -36,28 +36,24 @@ locals {
     "AppReporting"   = var.AppReporting_nsg_rules
   }
 
-  # Base naming convention: customer-client-loc-env (e.g., lab-astlab-wus-dr)
-  base_rg_name = lower(join("-", [
-    "rg",
+  # Base resource name: customer-client-loc-env (e.g., lab-astlab-wus-dr)
+  base_resource_name = lower(join("-", [
     var.project.customer,
     var.project.client_code,
     var.project.location,
     var.project.environment_level
   ]))
+
+  # Secondary Location (Paired Region)
+  secondary_location_code = lookup(var.region_pairs, var.project.location, "EUS")
+  secondary_location      = lookup(var.region_codes, local.secondary_location_code, "East US")
 
   # Map for resource groups (compute vs network)
   resource_group_names = {
     for type, suffix in var.resource_group_names : 
-      type => suffix == "" ? local.base_rg_name : "${local.base_rg_name}-${suffix}"
+      type => suffix == "" ? "rg-${local.base_resource_name}" : "rg-${local.base_resource_name}-${suffix}"
   }
 
   # Virtual Network Name
-
-  vnet_name = lower(join("-", [
-    "vnet",
-    var.project.customer,
-    var.project.client_code,
-    var.project.location,
-    var.project.environment_level
-  ]))
+  vnet_name = "vnet-${local.base_resource_name}"
 }
