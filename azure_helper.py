@@ -8,7 +8,8 @@ import re
 import os
 import json
 import subprocess
-from typing import Dict, Optional, List, Tuple
+import ipaddress
+from typing import Dict, Optional, List, Tuple, Any
 from collections import namedtuple
 
 # Define data structure for Azure Rule
@@ -27,10 +28,10 @@ AzureRule = namedtuple(
 )
 
 
-def parse_project_tfvars(filepath: str) -> Dict[str, str]:
+def parse_project_tfvars(filepath: str) -> Dict[str, Any]:
     """
     Parses 'project.auto.tfvars' to extract project-level variables.
-    Handles 'project = { ... }' block structure.
+    Handles 'project = { ... }' block structure and lists like address_space.
     """
     variables = {}
     if not os.path.exists(filepath):
@@ -41,20 +42,29 @@ def parse_project_tfvars(filepath: str) -> Dict[str, str]:
         content = f.read()
 
     # Find the project block: project = { ... }
-    # Using DOTALL to match across lines
     project_match = re.search(r"project\s*=\s*\{(.*?)\}", content, re.DOTALL)
 
     if project_match:
         inner_content = project_match.group(1)
-        # Extract key-value pairs inside the block
-        pairs = re.findall(r'(\w+)\s*=\s*"(.*?)"', inner_content)
-        for key, value in pairs:
-            variables[key] = value
-    else:
-        # Fallback for simple key="value" if project block not found (backward compat)
-        matches = re.findall(r'(\w+)\s*=\s*"(.*?)"', content)
-        for key, value in matches:
-            variables[key] = value
+
+        # 1. Extract List Values: key = ["val1", "val2"]
+        # We handle this first to avoid partial string matching later
+        list_matches = re.finditer(r'(\w+)\s*=\s*\[(.*?)\]', inner_content, re.DOTALL)
+        for match in list_matches:
+            key = match.group(1)
+            raw_list_content = match.group(2)
+            # Extract quoted strings from the list content
+            items = re.findall(r'"(.*?)"', raw_list_content)
+            variables[key] = items
+
+        # 2. Extract String Values: key = "value"
+        # We iterate again, but might overwrite list keys if not careful.
+        # Simple regex strategy: find string pairs
+        string_matches = re.findall(r'(\w+)\s*=\s*"(.*?)"', inner_content)
+        for key, value in string_matches:
+            # Only add if not already present (lists take precedence in this simple parser)
+            if key not in variables:
+                variables[key] = value
 
     return variables
 
@@ -64,7 +74,7 @@ def parse_subnet_config(filepath: str) -> Dict[str, Dict]:
     Parses 'locals.tf' to extract the 'subnet_config' map.
     Returns a dictionary of subnet configurations:
     {
-        "SubnetKey": { "name": "Name", "has_nsg": True/False, ... }
+        "SubnetKey": { "name": "Name", "has_nsg": True/False, "newbits": int, "netnum": int }
     }
     """
     subnets = {}
@@ -95,7 +105,6 @@ def parse_subnet_config(filepath: str) -> Dict[str, Dict]:
             break
         inner_content += char
 
-    # Now parse the inner content
     # Parse each entry like: Key = { name = "Val", has_nsg = true/false, ... }
     entries = re.findall(r'(\w+)\s*=\s*\{(.*?)\}', inner_content, re.DOTALL)
 
@@ -111,11 +120,42 @@ def parse_subnet_config(filepath: str) -> Dict[str, Dict]:
         if nsg_match:
             props["has_nsg"] = nsg_match.group(1) == "true"
         else:
-            props["has_nsg"] = False  # Default or fallback
+            props["has_nsg"] = False
+
+        # Extract newbits
+        nb_match = re.search(r'newbits\s*=\s*(\d+)', props_str)
+        if nb_match:
+            props["newbits"] = int(nb_match.group(1))
+
+        # Extract netnum
+        nn_match = re.search(r'netnum\s*=\s*(\d+)', props_str)
+        if nn_match:
+            props["netnum"] = int(nn_match.group(1))
 
         subnets[key] = props
 
     return subnets
+
+
+def calculate_subnet_cidr(base_cidr: str, newbits: int, netnum: int) -> str:
+    """
+    Calculates a specific subnet CIDR given the VNet base CIDR, newbits, and netnum.
+    Simulates Terraform's cidrsubnet(prefix, newbits, netnum).
+    """
+    try:
+        network = ipaddress.ip_network(base_cidr)
+        # Generate all subnets with the new prefix length
+        new_prefix = network.prefixlen + newbits
+        subnets = list(network.subnets(new_prefix=new_prefix))
+
+        if 0 <= netnum < len(subnets):
+            return str(subnets[netnum])
+        else:
+            print(f"❌ Error: netnum {netnum} out of range for base {base_cidr} with newbits {newbits}")
+            return ""
+    except Exception as e:
+        print(f"❌ Error calculating CIDR: {e}")
+        return ""
 
 
 def get_resource_group_name(vars: Dict[str, str]) -> str:
@@ -157,66 +197,42 @@ def fetch_azure_nsg_rules(
 
     try:
         credential = AzureCliCredential()
-
-        # If subscription_id is not provided, use default from credential (if possible) or raise error
-        # In a real scenario, subscription_id is crucial. Assuming it's passed or available in env.
         if not subscription_id:
-            # Attempt to get subscription from environment variable if set
             subscription_id = os.environ.get("AZURE_SUBSCRIPTION_ID")
-
-            # If still missing, try to fetch from active az login session
             if not subscription_id:
                 try:
                     result = subprocess.run(
                         ["az", "account", "show", "--query", "id", "-o", "tsv"],
-                        capture_output=True,
-                        text=True,
-                        check=True,
+                        capture_output=True, text=True, check=True,
                     )
                     subscription_id = result.stdout.strip()
                     print(f"ℹ️  Using active Azure Subscription: {subscription_id}")
                 except (subprocess.CalledProcessError, FileNotFoundError):
-                    print(
-                        "❌ Error: 'az' CLI not found or not logged in. Please run 'az login'."
-                    )
+                    print("❌ Error: 'az' CLI not found or not logged in.")
                     return []
 
-            if not subscription_id:
-                print("⚠️ No Subscription ID provided for Azure check.")
-                return []
+        if not subscription_id:
+            print("⚠️ No Subscription ID provided for Azure check.")
+            return []
 
         network_client = NetworkManagementClient(credential, subscription_id)
-
-        # Get NSG
         nsg = network_client.network_security_groups.get(resource_group, nsg_name)
 
         rules = []
         if nsg.security_rules:
             for rule in nsg.security_rules:
-                # Filter Default Rules (Priority >= 65000)
-                if rule.priority >= 65000:
-                    continue
-
-                # Create AzureRule object
-                rules.append(
-                    AzureRule(
-                        name=rule.name,
-                        priority=rule.priority,
-                        direction=rule.direction,
-                        access=rule.access,
-                        protocol=rule.protocol,
-                        source=rule.source_address_prefix,
-                        destination=rule.destination_address_prefix,
-                        dest_port=rule.destination_port_range,
-                    )
-                )
+                if rule.priority >= 65000: continue
+                rules.append(AzureRule(
+                    name=rule.name, priority=rule.priority, direction=rule.direction,
+                    access=rule.access, protocol=rule.protocol,
+                    source=rule.source_address_prefix, destination=rule.destination_address_prefix,
+                    dest_port=rule.destination_port_range,
+                ))
         return rules
 
     except Exception as e:
         if "CredentialUnavailableError" in str(type(e)) or "az login" in str(e).lower():
-            print(
-                "❌ Azure Authentication Failed. Please run 'az login' to authenticate."
-            )
+            print("❌ Azure Authentication Failed. Please run 'az login' to authenticate.")
         else:
             print(f"❌ Azure API Error for {nsg_name}: {e}")
         return []
