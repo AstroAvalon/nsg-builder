@@ -1,0 +1,39 @@
+# Example VM customization with multiple data disks and OS selection
+# Rename this file to .auto.tfvars to apply it, and fill in the required credentials.
+virtual_machines = {
+  "db-01" = {
+    role           = "db"
+    instance       = "01"
+    os_type        = "linux" # Can be "windows" or "linux"
+    subnet_key     = "AppDatabase"
+    size           = "Standard_D4s_v3"
+    admin_username = "adminuser"
+    # ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC..." # Replace with actual key
+
+    # Customizing Data Disks
+    data_disks = [
+      {
+        lun                  = 0
+        disk_size_gb         = 128
+        storage_account_type = "Premium_LRS"
+        caching              = "ReadWrite"
+      },
+      {
+        lun                  = 1
+        disk_size_gb         = 256
+        storage_account_type = "PremiumV2_LRS" # Example of Premium V2
+        disk_iops_read_write = 3000
+        disk_mbps_read_write = 125
+      }
+    ]
+  },
+  "app-01" = {
+    role           = "app"
+    instance       = "01"
+    os_type        = "windows"
+    subnet_key     = "AppPrivateLink"
+    size           = "Standard_D2s_v3"
+    admin_username = "adminuser"
+    # admin_password = "ChangeMe123!" # Required for Windows
+  }
+}

@@ -20,4 +20,11 @@ variable "virtual_machines" {
     })), [])
   }))
   default = {}
+
+  validation {
+    condition = alltrue([
+      for vm in var.virtual_machines : length(vm.role) <= 5
+    ])
+    error_message = "The 'role' attribute must be 5 characters or less to fit within the 15-character VM name limit."
+  }
 }
