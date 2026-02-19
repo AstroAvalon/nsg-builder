@@ -27,7 +27,7 @@ module "virtual_machines" {
   # Ensure the subnet key exists in the subnet module outputs
   subnet_id           = module.subnets[each.value.subnet_key].id
 
-  os_type        = each.value.os_type
+  os_flavor      = each.value.os_flavor
   size           = each.value.size
   admin_username = each.value.admin_username
   admin_password = each.value.admin_password
