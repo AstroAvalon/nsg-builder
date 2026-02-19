@@ -12,13 +12,13 @@ locals {
 
   # 2. Map the data
   subnet_config = {
-    GatewaySubnet  = { name = "GatewaySubnet",  newbits = 3, netnum = 0,  has_nsg = false, service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
-    AppPrivateLink = { name = "AppPrivateLink", newbits = 4, netnum = 2,  has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
-    AppDatabase    = { name = "AppDatabase",    newbits = 4, netnum = 4,  has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
-    AppBudgetBooks = { name = "AppBudgetBooks", newbits = 5, netnum = 12, has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
-    AppTestSavvy   = { name = "AppTestSavvy",   newbits = 4, netnum = 8,  has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
-    AppMGMTTools   = { name = "AppMGMTTools",   newbits = 4, netnum = 10, has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
-    AppReporting   = { name = "AppReporting",   newbits = 4, netnum = 12, has_nsg = true,  service_endpoints = [], aks_delegation = false, databricks_delegation = false, postgres_delegation = false }
+    GatewaySubnet  = { name = "GatewaySubnet",  newbits = 3, netnum = 0,  has_nsg = false }
+    AppPrivateLink = { name = "AppPrivateLink", newbits = 4, netnum = 2,  has_nsg = true  }
+    AppDatabase    = { name = "AppDatabase",    newbits = 4, netnum = 4,  has_nsg = true  }
+    AppBudgetBooks = { name = "AppBudgetBooks", newbits = 5, netnum = 12, has_nsg = true  }
+    AppTestSavvy   = { name = "AppTestSavvy",   newbits = 4, netnum = 8,  has_nsg = true  }
+    AppMGMTTools   = { name = "AppMGMTTools",   newbits = 4, netnum = 10, has_nsg = true  }
+    AppReporting   = { name = "AppReporting",   newbits = 4, netnum = 12, has_nsg = true  }
   }
 
   # 3. Calculate CIDRs dynamically using newbits and netnum
