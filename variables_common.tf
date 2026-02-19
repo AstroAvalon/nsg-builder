@@ -4,6 +4,7 @@ variable "resource_group_names" {
   default = {
     compute = ""
     network = "network"
+    mgmt    = "mgmt"
   }
 }
 
@@ -45,7 +46,23 @@ variable "region_pairs" {
   description = "Map of primary regions to their paired secondary region."
   type        = map(string)
   default = {
+    # West US <-> East US
+    WUS  = "EUS"
+    EUS  = "WUS"
+
+    # West US 2 <-> West Central US
+    WUS2 = "WCUS"
+    WCUS = "WUS2"
+
+    # West US 3 <-> East US
     WUS3 = "EUS"
-    EUS  = "WUS" # Example pair for EUS if needed
+
+    # Central US <-> East US 2
+    CUS  = "EUS2"
+    EUS2 = "CUS"
+
+    # North Central US <-> South Central US
+    NCUS = "SCUS"
+    SCUS = "NCUS"
   }
 }

@@ -18,3 +18,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "secondary_resource_group_name" {
+  description = "The name of the resource group for secondary DNS zones. If not provided, it defaults to '<primary-rg-name>-secondary-dns'."
+  type        = string
+  default     = null
+}

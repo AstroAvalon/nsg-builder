@@ -48,6 +48,14 @@ locals {
   secondary_location_code = lookup(var.region_pairs, var.project.location, "EUS")
   secondary_location      = lookup(var.region_codes, local.secondary_location_code, "East US")
 
+  # Secondary Base resource name: customer-client-loc-env (e.g., lab-astlab-eus-dr)
+  secondary_base_resource_name = lower(join("-", [
+    var.project.customer,
+    var.project.client_code,
+    local.secondary_location_code,
+    var.project.environment_level
+  ]))
+
   # Map for resource groups (compute vs network)
   resource_group_names = {
     for type, suffix in var.resource_group_names : 
