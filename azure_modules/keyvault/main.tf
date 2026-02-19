@@ -14,7 +14,7 @@ resource "azurerm_key_vault" "kv" {
   purge_protection_enabled    = false
   sku_name                    = "standard"
 
-  enable_rbac_authorization = true
+  rbac_authorization_enabled  = true
 
   network_acls {
     default_action = "Deny"
