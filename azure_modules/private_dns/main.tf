@@ -31,7 +31,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "primary_link" {
 # We create a new resource group for the secondary zones to allow duplicate zone names (since they are in different RGs)
 # Note: Private DNS Zones are global resources, but they live in a resource group.
 resource "azurerm_resource_group" "secondary" {
-  name     = "${var.resource_group_name}-secondary-dns"
+  name     = var.secondary_resource_group_name != null ? var.secondary_resource_group_name : "${var.resource_group_name}-secondary-dns"
   location = var.secondary_location
   tags     = var.tags
 }
