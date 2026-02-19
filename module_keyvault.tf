@@ -2,7 +2,8 @@ module "keyvault" {
   source = "./azure_modules/keyvault"
 
   project              = var.project
-  resource_group_name  = module.resource_groups["network"].name
+  resource_group_name  = module.resource_groups["compute"].name
+  pe_resource_group_name = module.resource_groups["network"].name
   location             = var.region_codes[var.project.location]
   base_resource_name   = local.base_resource_name
   subnet_id            = module.subnets["AppPrivateLink"].id

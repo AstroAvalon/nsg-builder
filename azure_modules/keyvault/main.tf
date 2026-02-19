@@ -1,5 +1,7 @@
 locals {
   kv_name = "kv-${var.base_resource_name}"
+  # Use the provided PE resource group name, or default to the main resource group name
+  pe_resource_group_name = coalesce(var.pe_resource_group_name, var.resource_group_name)
 }
 
 data "azurerm_client_config" "current" {}
@@ -29,7 +31,7 @@ resource "azurerm_key_vault" "kv" {
 resource "azurerm_private_endpoint" "pe" {
   name                = "pe-${local.kv_name}"
   location            = var.location
-  resource_group_name = var.resource_group_name
+  resource_group_name = local.pe_resource_group_name
   subnet_id           = var.subnet_id
 
   private_service_connection {

@@ -16,30 +16,20 @@ variable "resource_group_name" {
   type        = string
 }
 
-variable "pe_resource_group_name" {
-  description = "The name of the resource group for the Private Endpoint. Defaults to `resource_group_name` if not specified."
-  type        = string
-  default     = null
-}
-
 variable "location" {
-  description = "The location for the Key Vault."
+  description = "The Azure region where resources will be created."
   type        = string
 }
 
 variable "base_resource_name" {
-  description = "The base name for resources (e.g., customer-client-loc-env)."
+  description = "The base name for resources."
   type        = string
 }
 
-variable "subnet_id" {
-  description = "The Subnet ID where the Private Endpoint will be created."
-  type        = string
-}
-
-variable "private_dns_zone_ids" {
-  description = "Map containing 'primary' and 'secondary' Private DNS Zone IDs for Key Vault."
+variable "subnet_ids" {
+  description = "A map of subnet IDs to associate with the NAT Gateway."
   type        = map(string)
+  default     = {}
 }
 
 variable "tags" {

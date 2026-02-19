@@ -20,6 +20,7 @@ done
 
 # 3. Execution Logic
 COMMAND=$1
+OPTION=$2
 
 case $COMMAND in
     plan)
@@ -36,13 +37,21 @@ case $COMMAND in
         fi
         ;;
     destroy)
-        read -p "Are you sure you want to DESTROY? (y/n): " confirm
-        if [[ $confirm == "y" ]]; then
-            terraform destroy $VAR_ARGS
+        if [[ "$OPTION" == "-y" || "$OPTION" == "--force" ]]; then
+            echo "🔥 Force destroying infrastructure..."
+            terraform destroy $VAR_ARGS -auto-approve
+        else
+            read -p "Are you sure you want to DESTROY? (y/n): " confirm
+            if [[ $confirm == "y" ]]; then
+                echo "🔥 Destroying infrastructure..."
+                terraform destroy $VAR_ARGS -auto-approve
+            else
+                echo "❌ Destroy cancelled."
+            fi
         fi
         ;;
     *)
-        echo "Usage: $0 {plan|apply|destroy}"
+        echo "Usage: $0 {plan|apply|destroy [-y|--force]}"
         exit 1
         ;;
 esac
