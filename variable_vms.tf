@@ -3,7 +3,7 @@ variable "virtual_machines" {
   type = map(object({
     role           = string
     instance       = string
-    os_type        = string
+    image          = string
     subnet_key     = string
     size           = optional(string, "Standard_D2s_v3")
     admin_username = optional(string, "azureadmin")
