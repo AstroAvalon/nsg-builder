@@ -40,67 +40,11 @@ variable subnet_id {
   type = string
 }
 
-variable "blob_zone_id" {
-  description = "The ID of the blob zone"
-  type        = list(string)
-}
-
-variable "file_zone_id" {
-  description = "The ID of the file zone"
-  type        = list(string)
-}
-
-variable "dfs_zone_id" {
-  description = "The ID of the dfs zone"
-  type        = list(string)
-}
-
-variable "queue_zone_id" {
-  description = "The ID of the queue zone"
-  type        = list(string)
-}
-
-variable "table_zone_id" {
-  description = "The ID of the table zone"
-  type        = list(string)
-}
-
-variable "blob_zone_rg_secondary" {
-  type = string
-}
-
-variable "dfs_zone_rg_secondary" {
-  type = string
-}
-
-variable "file_zone_rg_secondary" {
-  type = string
-}
-
-variable "queue_zone_rg_secondary" {
-  type = string
-}
-
-variable "table_zone_rg_secondary" {
-  type = string
-}
-
-variable "blob_zone_rg_tertiary" {
-  type = string
-}
-
-variable "dfs_zone_rg_tertiary" {
-  type = string
-}
-
-variable "file_zone_rg_tertiary" {
-  type = string
-}
-
-variable "queue_zone_rg_tertiary" {
-  type = string
-}
-
-variable "table_zone_rg_tertiary" {
-  type = string
+variable "dns_zones" {
+  description = "Map of DNS zone configurations for each service (blob, file, dfs, queue, table)"
+  type = map(object({
+    ids           = list(string)
+    secondary_rg  = string
+    tertiary_rg   = string
+  }))
 }
