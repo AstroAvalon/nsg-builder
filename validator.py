@@ -1,17 +1,11 @@
 """
-MODULE: NSG Rule Validator
-AUTHOR: Jules
-DATE: 2026-02-19
+NSG Rule Validator
 
-DESCRIPTION:
-  Validates that NSG rules defined in an Excel file (and optional Base Rules)
-  are correctly present in the Terraform configuration (.tfvars files).
+Validates that NSG rules defined in an Excel file (and optional Base Rules)
+are correctly present in the Terraform configuration (.tfvars files).
 
-  It performs a content-based match (ignoring Priority, Name, Description)
-  checking: Direction, Access, Protocol, Source, Destination, Destination Port.
-
-USAGE:
-  python validator.py <excel_file> [--base-rules <base_rules_file>] [--repo-root <path>]
+It performs a content-based match (ignoring Priority, Name, Description)
+checking: Direction, Access, Protocol, Source, Destination, Destination Port.
 """
 
 import pandas as pd
@@ -25,13 +19,13 @@ from typing import Dict, List, Any, Optional
 try:
     import azure_helper
 except ImportError:
-    print("❌ Error: azure_helper module not found.")
+    print("Error: azure_helper module not found.")
     sys.exit(1)
 
-# --- CONFIGURATION ---
+# Configuration
 OUTPUT_SUFFIX = "_updated"
 
-# --- REGEXES (Matches nsg_merger behavior) ---
+# Regexes (Matches nsg_merger behavior)
 RE_ALPHANUMERIC = re.compile(r"[^a-zA-Z0-9]")
 RE_DOT_BETWEEN_NUMBERS = re.compile(r"(\d)\s*\.\s*(\d)")
 RE_WHITESPACE = re.compile(r"\s+")
@@ -78,15 +72,8 @@ def find_existing_file(subnet_key: str, repo_root: str) -> Optional[str]:
 
     # List all auto.tfvars
     all_files = glob.glob(os.path.join(tfvars_dir, "*.auto.tfvars"))
-    # Filter out _updated files to find the source of truth (or updated ones if they exist?
-    # Usually validation happens against the current state.
-    # nsg_merger produces _updated.
-    # If _updated exists, we should probably validate against that if the intention is to verify the *proposal*.
-    # But usually validator checks the *committed* code.
-    # Let's check all valid files (excluding _updated usually, unless we want to check the result of a merge).
-    # The requirement says "match each value in the excel exactly with its corresponding tfvar file/rule".
-    # I will assume we check the files that are currently valid in the repo.
     
+    # Filter out _updated files to find the source of truth
     valid_files = [f for f in all_files if OUTPUT_SUFFIX not in f]
     
     for file_path in valid_files:
@@ -102,32 +89,24 @@ def rules_match(expected: Dict[str, Any], actual: Dict[str, Any]) -> bool:
     # 2. Access
     if expected['access'] != actual.get('access'): return False
     # 3. Protocol
-    # Handle "*" vs "Any" vs "*"
     e_proto = expected['protocol']
     a_proto = actual.get('protocol', '*')
     if e_proto != a_proto:
         # Special case: * matches Any
-        if not (e_proto == "*" and a_proto == "*"): # already checked eq
+        if not (e_proto == "*" and a_proto == "*"):
              return False
 
-    # 4. Source Address (Prefix vs Prefixes)
-    # Excel usually gives a comma-separated list.
-    # Terraform has source_address_prefix (string) OR source_address_prefixes (list).
-    # We need to normalize both to a set of strings for comparison.
+    # 4. Source Address
     e_src = set(expected['source'].split(','))
 
     a_src_raw = actual.get('source_address_prefix') or actual.get('source_address_prefixes')
     if isinstance(a_src_raw, list):
         a_src = set(a_src_raw)
     else:
-        # If it's a string, it might be "*" or a single CIDR or a comma-list (if erroneously put in string field)
-        # Usually TF uses list for multiple.
-        # But if the validator normalized inputs to comma-string, we split it.
-        if a_src_raw is None: a_src = {"*"} # Default?
+        if a_src_raw is None: a_src = {"*"}
         else: a_src = set(str(a_src_raw).replace(" ", "").split(','))
 
-    # Special handling for "*"
-    if "*" in e_src and "*" in a_src: pass # Match
+    if "*" in e_src and "*" in a_src: pass
     elif e_src != a_src: return False
 
     # 5. Destination Address
@@ -146,7 +125,6 @@ def rules_match(expected: Dict[str, Any], actual: Dict[str, Any]) -> bool:
     e_port = set(expected['dest_port'].split(','))
     a_port_raw = actual.get('destination_port_range') or actual.get('destination_port_ranges')
 
-    # Terraform ports can be ints or strings.
     if isinstance(a_port_raw, list):
         a_port = set(str(p) for p in a_port_raw)
     else:
@@ -159,8 +137,7 @@ def rules_match(expected: Dict[str, Any], actual: Dict[str, Any]) -> bool:
     return True
 
 def validate(excel_file, base_rules_file, repo_root):
-    # 1. Load Context
-    print("ℹ️  Loading Project Context...")
+    print("Loading Project Context...")
     locals_tf_path = os.path.join(repo_root, "locals.tf")
     project_vars_path = os.path.join(repo_root, "tfvars", "project.auto.tfvars")
 
@@ -171,7 +148,7 @@ def validate(excel_file, base_rules_file, repo_root):
     if project_vars.get('address_space'):
         vnet_cidr = project_vars['address_space'][0]
 
-    # 2. Load Excel Data
+    # Load Excel Data
     client_rules = []
     if excel_file:
         try:
@@ -181,7 +158,7 @@ def validate(excel_file, base_rules_file, repo_root):
             df = df[df["Azure Subnet Name"] != "GatewaySubnet"]
             client_rules = df.to_dict('records')
         except Exception as e:
-            print(f"❌ Error reading Client Excel: {e}")
+            print(f"Error reading Client Excel: {e}")
             return
 
     base_rules = []
@@ -191,17 +168,16 @@ def validate(excel_file, base_rules_file, repo_root):
             df_base.columns = df_base.columns.str.strip()
             base_rules = df_base.to_dict('records')
         except Exception as e:
-            print(f"❌ Error reading Base Rules Excel: {e}")
+            print(f"Error reading Base Rules Excel: {e}")
             return
 
-    # 3. Resolve Subnet Map (Name -> Key)
+    # Resolve Subnet Map (Name -> Key)
     name_to_key = {}
     for k, v in subnet_config.items():
         if "name" in v: name_to_key[v["name"]] = k
         name_to_key[k] = k
 
-    # 4. Build List of Validations
-    # List of (SubnetKey, ExpectedRuleDict)
+    # Build List of Validations
     validations = []
 
     # A. Client Rules
@@ -223,7 +199,6 @@ def validate(excel_file, base_rules_file, repo_root):
                         vnet_cidr, conf.get("newbits", 0), conf.get("netnum", 0)
                     )
 
-                # Replace placeholders
                 src = clean_ip(row["Source"]).replace("{{CurrentSubnet}}", current_cidr).replace("{{VNetCIDR}}", vnet_cidr)
                 dst = clean_ip(row["Destination"]).replace("{{CurrentSubnet}}", current_cidr).replace("{{VNetCIDR}}", vnet_cidr)
 
@@ -258,13 +233,11 @@ def validate(excel_file, base_rules_file, repo_root):
 
     # B. Base Rules
     if base_rules:
-        # Base rules apply to ALL subnets with has_nsg = true
         target_keys = {k for k, v in subnet_config.items() if v.get("has_nsg", False)}
 
         for key in target_keys:
             if str(key).lower() == "gatewaysubnet": continue
             
-            # Calculate CIDR
             current_cidr = ""
             conf = subnet_config.get(key)
             if conf:
@@ -273,7 +246,6 @@ def validate(excel_file, base_rules_file, repo_root):
                 )
             
             for row in base_rules:
-                # Replace placeholders
                 src = clean_ip(row["Source"]).replace("{{CurrentSubnet}}", current_cidr).replace("{{VNetCIDR}}", vnet_cidr)
                 dst = clean_ip(row["Destination"]).replace("{{CurrentSubnet}}", current_cidr).replace("{{VNetCIDR}}", vnet_cidr)
 
@@ -290,35 +262,31 @@ def validate(excel_file, base_rules_file, repo_root):
                 }
                 validations.append(rule)
 
-    # 5. Execute Validation
-    print(f"ℹ️  Validating {len(validations)} rules...")
+    # Execute Validation
+    print(f"Validating {len(validations)} rules...")
     
-    # Cache parsed TF files to avoid re-reading
     file_cache = {}
-
     stats = {"ok": 0, "missing": 0, "total": 0}
 
     for expected in validations:
         stats["total"] += 1
         key = expected['subnet_key']
 
-        # Find File
         if key not in file_cache:
             filepath = find_existing_file(key, repo_root)
             if filepath:
                 with open(filepath, "r") as f:
                     file_cache[key] = azure_helper.parse_hcl_rules(f.read())
             else:
-                file_cache[key] = None # File missing
+                file_cache[key] = None
         
         actual_rules = file_cache[key]
 
         if not actual_rules:
-            print(f"❌ [{expected['subnet_key']}] Subnet File Missing! Cannot find rule: {expected['desc']}")
+            print(f"[{expected['subnet_key']}] Subnet File Missing! Cannot find rule: {expected['desc']}")
             stats["missing"] += 1
             continue
 
-        # Search for match
         found = False
         for actual in actual_rules:
             if rules_match(expected, actual):
@@ -326,18 +294,17 @@ def validate(excel_file, base_rules_file, repo_root):
                 break
 
         if found:
-            print(f"✅ [{expected['subnet_key']}] Found: {expected['desc']}")
+            print(f"[{expected['subnet_key']}] Found: {expected['desc']}")
             stats["ok"] += 1
         else:
-            print(f"❌ [{expected['subnet_key']}] MISSING: {expected['desc']}")
+            print(f"[{expected['subnet_key']}] MISSING: {expected['desc']}")
             print(f"    Expected: {expected['access']} {expected['direction']} {expected['protocol']} Src:{expected['source']} Dst:{expected['destination']} Port:{expected['dest_port']}")
             stats["missing"] += 1
 
-    # 6. Summary
     print("\n--- Validation Summary ---")
     print(f"Total Rules Checked: {stats['total']}")
-    print(f"✅ Present:          {stats['ok']}")
-    print(f"❌ Missing:          {stats['missing']}")
+    print(f"Present:          {stats['ok']}")
+    print(f"Missing:          {stats['missing']}")
 
     if stats['missing'] > 0:
         sys.exit(1)
@@ -347,7 +314,7 @@ def validate(excel_file, base_rules_file, repo_root):
 if __name__ == "__main__":
     args = parse_arguments()
     if not args.excel_file and not args.base_rules:
-        print("❌ Error: Must provide either excel_file or --base-rules")
+        print("Error: Must provide either excel_file or --base-rules")
         sys.exit(1)
 
     validate(args.excel_file, args.base_rules, args.repo_root)
