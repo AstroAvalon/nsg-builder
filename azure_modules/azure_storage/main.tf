@@ -102,217 +102,75 @@ resource "azurerm_storage_share" "file_share" {
 
 }
 
-resource "azurerm_private_endpoint" "blob_pep" {
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_blob_endpoint }
+locals {
+  service_types = ["blob", "file", "dfs", "queue", "table"]
 
-  name                = "blob-pe-${each.value.name}"
+  # Map service name to DNS zone name suffix
+  dns_zone_names = {
+    blob  = "privatelink.blob.core.windows.net"
+    file  = "privatelink.file.core.windows.net"
+    dfs   = "privatelink.dfs.core.windows.net"
+    queue = "privatelink.queue.core.windows.net"
+    table = "privatelink.table.core.windows.net"
+  }
+
+  # Flatten the configuration into a list of endpoints to create
+  endpoints_list = flatten([
+    for sa in var.storage_account_config : [
+      for service in local.service_types : {
+        key                  = "${sa.name}-${service}"
+        storage_account_name = sa.name
+        service_name         = service
+      }
+      if lookup(sa, "create_${service}_endpoint", false)
+    ]
+  ])
+
+  # Convert list to map for for_each
+  endpoints_map = {
+    for ep in local.endpoints_list : ep.key => ep
+  }
+}
+
+resource "azurerm_private_endpoint" "pep" {
+  for_each = local.endpoints_map
+
+  name                = "${each.value.service_name}-pe-${each.value.storage_account_name}"
   location            = var.location
   resource_group_name = var.resource_group_name_pep
   subnet_id           = var.subnet_id
 
   private_service_connection {
-    name                           = "blob-psc-${each.value.name}"
+    name                           = "${each.value.service_name}-psc-${each.value.storage_account_name}"
     is_manual_connection           = false
-    private_connection_resource_id = azurerm_storage_account.account[each.key].id
-    subresource_names              = ["blob"]
+    private_connection_resource_id = azurerm_storage_account.account[each.value.storage_account_name].id
+    subresource_names              = [each.value.service_name]
   }
 
   private_dns_zone_group {
-    name                 = "blob-default"
-    private_dns_zone_ids = var.blob_zone_id
+    name                 = "${each.value.service_name}-default"
+    private_dns_zone_ids = var.dns_zones[each.value.service_name].ids
   }
 }
 
-resource "azurerm_private_dns_a_record" "blob_a_record" {
+resource "azurerm_private_dns_a_record" "secondary" {
   provider = azurerm.management
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_blob_endpoint }
+  for_each = local.endpoints_map
 
-  name                = each.value.name
-  zone_name           = "privatelink.blob.core.windows.net"
-  resource_group_name = var.blob_zone_rg_secondary
+  name                = each.value.storage_account_name
+  zone_name           = local.dns_zone_names[each.value.service_name]
+  resource_group_name = var.dns_zones[each.value.service_name].secondary_rg
   ttl                 = 300
-  records             = [azurerm_private_endpoint.blob_pep[each.key].private_service_connection[0].private_ip_address]
+  records             = [azurerm_private_endpoint.pep[each.key].private_service_connection[0].private_ip_address]
 }
 
-resource "azurerm_private_dns_a_record" "blob_a_record_tertiary" {
+resource "azurerm_private_dns_a_record" "tertiary" {
   provider = azurerm.management
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_blob_endpoint }
+  for_each = local.endpoints_map
 
-  name                = each.value.name
-  zone_name           = "privatelink.blob.core.windows.net"
-  resource_group_name = var.blob_zone_rg_tertiary
+  name                = each.value.storage_account_name
+  zone_name           = local.dns_zone_names[each.value.service_name]
+  resource_group_name = var.dns_zones[each.value.service_name].tertiary_rg
   ttl                 = 300
-  records             = [azurerm_private_endpoint.blob_pep[each.key].private_service_connection[0].private_ip_address]
-}
-
-resource "azurerm_private_endpoint" "dfs_pep" {
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_dfs_endpoint }
-
-  name                = "dfs-pe-${each.value.name}"
-  location            = var.location
-  resource_group_name = var.resource_group_name_pep
-  subnet_id           = var.subnet_id
-
-  private_service_connection {
-    name                           = "dfs-psc-${each.value.name}"
-    is_manual_connection           = false
-    private_connection_resource_id = azurerm_storage_account.account[each.key].id
-    subresource_names              = ["dfs"]
-  }
-
-  private_dns_zone_group {
-    name                 = "dfs-default"
-    private_dns_zone_ids = var.dfs_zone_id
-  }
-}
-
-resource "azurerm_private_dns_a_record" "dfs_a_record" {
-  provider = azurerm.management
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_dfs_endpoint }
-
-  name                = each.value.name
-  zone_name           = "privatelink.dfs.core.windows.net"
-  resource_group_name = var.dfs_zone_rg_secondary
-  ttl                 = 300
-  records             = [azurerm_private_endpoint.dfs_pep[each.key].private_service_connection[0].private_ip_address]
-}
-
-resource "azurerm_private_dns_a_record" "dfs_a_record_tertiary" {
-  provider = azurerm.management
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_dfs_endpoint }
-
-  name                = each.value.name
-  zone_name           = "privatelink.dfs.core.windows.net"
-  resource_group_name = var.dfs_zone_rg_tertiary
-  ttl                 = 300
-  records             = [azurerm_private_endpoint.dfs_pep[each.key].private_service_connection[0].private_ip_address]
-}
-
-resource "azurerm_private_endpoint" "file_pep" {
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_file_endpoint }
-
-  name                = "file-pe-${each.value.name}"
-  location            = var.location
-  resource_group_name = var.resource_group_name_pep
-  subnet_id           = var.subnet_id
-
-  private_service_connection {
-    name                           = "file-psc-${each.value.name}"
-    is_manual_connection           = false
-    private_connection_resource_id = azurerm_storage_account.account[each.key].id
-    subresource_names              = ["file"]
-  }
-
-  private_dns_zone_group {
-    name                 = "file-default"
-    private_dns_zone_ids = var.file_zone_id
-  }
-}
-
-resource "azurerm_private_dns_a_record" "file_a_record" {
-  provider = azurerm.management
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_file_endpoint }
-
-  name                = each.value.name
-  zone_name           = "privatelink.file.core.windows.net"
-  resource_group_name = var.file_zone_rg_secondary
-  ttl                 = 300
-  records             = [azurerm_private_endpoint.file_pep[each.key].private_service_connection[0].private_ip_address]
-}
-
-resource "azurerm_private_dns_a_record" "file_a_record_tertiary" {
-  provider = azurerm.management
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_file_endpoint }
-
-  name                = each.value.name
-  zone_name           = "privatelink.file.core.windows.net"
-  resource_group_name = var.file_zone_rg_tertiary
-  ttl                 = 300
-  records             = [azurerm_private_endpoint.file_pep[each.key].private_service_connection[0].private_ip_address]
-}
-
-resource "azurerm_private_endpoint" "table_pep" {
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_table_endpoint }
-
-  name                = "table-pe-${each.value.name}"
-  location            = var.location
-  resource_group_name = var.resource_group_name_pep
-  subnet_id           = var.subnet_id
-
-  private_service_connection {
-    name                           = "table-psc-${each.value.name}"
-    is_manual_connection           = false
-    private_connection_resource_id = azurerm_storage_account.account[each.key].id
-    subresource_names              = ["table"]
-  }
-
-  private_dns_zone_group {
-    name                 = "table-default"
-    private_dns_zone_ids = var.table_zone_id
-  }
-}
-
-resource "azurerm_private_dns_a_record" "table_a_record" {
-  provider = azurerm.management
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_table_endpoint }
-
-  name                = each.value.name
-  zone_name           = "privatelink.table.core.windows.net"
-  resource_group_name = var.table_zone_rg_secondary
-  ttl                 = 300
-  records             = [azurerm_private_endpoint.table_pep[each.key].private_service_connection[0].private_ip_address]
-}
-
-resource "azurerm_private_dns_a_record" "table_a_record_tertiary" {
-  provider = azurerm.management
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_table_endpoint }
-
-  name                = each.value.name
-  zone_name           = "privatelink.table.core.windows.net"
-  resource_group_name = var.table_zone_rg_tertiary
-  ttl                 = 300
-  records             = [azurerm_private_endpoint.table_pep[each.key].private_service_connection[0].private_ip_address]
-}
-
-resource "azurerm_private_endpoint" "queue_pep" {
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_queue_endpoint }
-
-  name                = "queue-pe-${each.value.name}"
-  location            = var.location
-  resource_group_name = var.resource_group_name_pep
-  subnet_id           = var.subnet_id
-
-  private_service_connection {
-    name                           = "queue-psc-${each.value.name}"
-    is_manual_connection           = false
-    private_connection_resource_id = azurerm_storage_account.account[each.key].id
-    subresource_names              = ["queue"]
-  }
-
-  private_dns_zone_group {
-    name                 = "queue-default"
-    private_dns_zone_ids = var.queue_zone_id
-  }
-}
-
-resource "azurerm_private_dns_a_record" "queue_a_record" {
-  provider = azurerm.management
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_queue_endpoint }
-
-  name                = each.value.name
-  zone_name           = "privatelink.queue.core.windows.net"
-  resource_group_name = var.queue_zone_rg_secondary
-  ttl                 = 300
-  records             = [azurerm_private_endpoint.queue_pep[each.key].private_service_connection[0].private_ip_address]
-}
-
-resource "azurerm_private_dns_a_record" "queue_a_record_tertiary" {
-  provider = azurerm.management
-  for_each = { for sa in var.storage_account_config : sa.name => sa if sa.create_queue_endpoint }
-
-  name                = each.value.name
-  zone_name           = "privatelink.queue.core.windows.net"
-  resource_group_name = var.queue_zone_rg_tertiary
-  ttl                 = 300
-  records             = [azurerm_private_endpoint.queue_pep[each.key].private_service_connection[0].private_ip_address]
+  records             = [azurerm_private_endpoint.pep[each.key].private_service_connection[0].private_ip_address]
 }
