@@ -258,6 +258,86 @@ class TestNSGMerger(unittest.TestCase):
             self.assertIn('destination_address_prefix = "10.0.1.0/24"', full_output)
             self.assertNotIn('{{CurrentSubnet}}', full_output)
 
+    @patch("nsg_merger.find_existing_file")
+    def test_merge_only_base_rules(self, mock_find_file):
+        # 1. Setup Mock Pandas for Base Rules (Client is None)
+        mock_base_df = MagicMock()
+        mock_pd.read_excel.return_value = mock_base_df
+
+        # 2. Setup Base DF
+        base_row = {
+            "Azure Subnet Name": "ALL",
+            "Priority": "4000",
+            "Direction": "Inbound",
+            "Access": "Allow",
+            "Source": "10.0.0.0/8",
+            "Destination": "{{CurrentSubnet}}",
+            "Protocol": "Tcp",
+            "Destination Port": "443",
+            "Description": "Base Rule",
+        }
+        mock_base_row = MagicMock()
+        mock_base_row.__getitem__ = lambda self, k: base_row[k]
+
+        mock_base_df.columns.str.strip.return_value = ["Azure Subnet Name", "Priority", "Direction", "Access", "Source", "Destination", "Protocol", "Destination Port", "Description"]
+        mock_base_df.iterrows.return_value = [(0, mock_base_row)]
+        mock_base_df.__len__.return_value = 1
+
+        # 3. Configure mock_pd.DataFrame to mimic empty client DF behavior
+        mock_empty_df = MagicMock()
+        mock_series = MagicMock()
+        mock_series.dropna.return_value = mock_series
+        mock_series.unique.return_value = []
+
+        mock_empty_df.__getitem__.return_value = mock_series
+        mock_empty_df.iterrows.return_value = []
+
+        def getitem_side_effect(arg):
+             if isinstance(arg, str): return mock_series # Column access
+             return mock_empty_df # Filtering result
+        mock_empty_df.__getitem__.side_effect = getitem_side_effect
+
+        mock_pd.DataFrame.return_value = mock_empty_df
+
+        # 4. Setup Config
+        subnet_config = {"AppSubnet": {"name": "AppSubnet", "has_nsg": True, "newbits": 8, "netnum": 1}}
+        project_vars = {"address_space": ["10.0.0.0/16"]}
+
+        existing_content = """
+        AppSubnet_nsg_rules = [
+          {
+            name = "existing_rule"
+            priority = 1000
+            direction = "Inbound"
+            access = "Allow"
+            protocol = "Tcp"
+            source_address_prefix = "*"
+            destination_address_prefix = "*"
+            destination_port_range = "443"
+          }
+        ]
+        """
+
+        with patch("azure_helper.parse_project_tfvars", return_value=project_vars), \
+             patch("azure_helper.parse_subnet_config", return_value=subnet_config), \
+             patch("azure_helper.calculate_subnet_cidr", return_value="10.0.1.0/24"), \
+             patch("os.path.exists", return_value=True), \
+             patch("glob.glob", return_value=["tfvars/nsg_appsubnet.auto.tfvars"]), \
+             patch("builtins.open", mock_open(read_data=existing_content)) as mock_file:
+
+            mock_find_file.return_value = "tfvars/nsg_appsubnet.auto.tfvars"
+
+            # RUN with None client file
+            nsg_merger.merge_nsg_rules(None, "base.xlsx", ".")
+
+            # VERIFY
+            written_content = ""
+            for call in mock_file().write.call_args_list:
+                written_content += str(call.args[0])
+
+            self.assertIn("AppSubnet_IN_Allow4000", written_content)
+            self.assertIn('name                       = "existing_rule"', written_content)
+
 
 if __name__ == "__main__":
     unittest.main()

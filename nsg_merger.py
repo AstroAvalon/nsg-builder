@@ -52,7 +52,7 @@ RE_KV_INT = re.compile(r'(\w+)\s*=\s*(\d+)')
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Merge NSG rules from Excel to Terraform files.")
-    parser.add_argument("excel_file", help="Path to the Excel request file")
+    parser.add_argument("excel_file", nargs="?", help="Path to the Excel request file", default=None)
     parser.add_argument("--base-rules", help="Path to Base Rules Excel file (Applies to ALL subnets)", default=None)
     parser.add_argument("--repo-root", default=".", help="Root directory of the repo")
     return parser.parse_args()
@@ -141,12 +141,18 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str):
         vnet_cidr = project_vars['address_space'][0]
 
     # --- Load Excel Data ---
-    try:
-        df_client = pd.read_excel(excel_path, dtype=str)
-        df_client.columns = df_client.columns.str.strip()
-    except Exception as e:
-        print(f"❌ Error reading Client Excel: {e}")
-        return
+    if excel_path:
+        try:
+            df_client = pd.read_excel(excel_path, dtype=str)
+            df_client.columns = df_client.columns.str.strip()
+        except Exception as e:
+            print(f"❌ Error reading Client Excel: {e}")
+            return
+    else:
+        df_client = pd.DataFrame(columns=[
+            "Azure Subnet Name", "Priority", "Direction", "Access",
+            "Source", "Destination", "Protocol", "Destination Port", "Description"
+        ])
 
     df_base = None
     if base_rules_path:

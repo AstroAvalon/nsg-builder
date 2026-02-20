@@ -42,6 +42,12 @@ Execute the script from the command line, providing the path to your Excel file:
 python nsg_merger.py nsg_request.xlsx
 ```
 
+To run with only Base Rules (e.g., during project initialization):
+
+```bash
+python nsg_merger.py --base-rules base_rules.xlsx
+```
+
 To specify the root of the Terraform repository (defaults to current directory):
 
 ```bash
