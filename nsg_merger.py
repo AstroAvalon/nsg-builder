@@ -46,9 +46,6 @@ PRIORITY_STEP = 10
 RE_ALPHANUMERIC = re.compile(r"[^a-zA-Z0-9]")
 RE_DOT_BETWEEN_NUMBERS = re.compile(r"(\d)\s*\.\s*(\d)")
 RE_WHITESPACE = re.compile(r"\s+")
-RE_RULE_BLOCK = re.compile(r"\{\s*(.*?)\s*\}", re.DOTALL)
-RE_KV_STRING = re.compile(r'(\w+)\s*=\s*"(.*?)"')
-RE_KV_INT = re.compile(r'(\w+)\s*=\s*(\d+)')
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Merge NSG rules from Excel to Terraform files.")
@@ -66,24 +63,6 @@ def find_existing_file(subnet_name: str, valid_files: List[str]) -> Optional[str
         if safe_name in clean_filename:
             return file_path
     return None
-
-def parse_hcl_rules(content: str) -> List[Dict[str, Any]]:
-    rules = []
-    list_match = re.search(r"=\s*\[(.*)\]", content, re.DOTALL)
-    if not list_match:
-        return rules
-
-    inner_content = list_match.group(1)
-    for match in RE_RULE_BLOCK.finditer(inner_content):
-        block_body = match.group(1)
-        rule = {}
-        for kv in RE_KV_STRING.finditer(block_body):
-            rule[kv.group(1)] = kv.group(2)
-        for kv in RE_KV_INT.finditer(block_body):
-            rule[kv.group(1)] = int(kv.group(2))
-        if rule:
-            rules.append(rule)
-    return rules
 
 def format_rule(rule: Dict[str, Any]) -> str:
     order = [
@@ -220,7 +199,7 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str):
             print(f"   ↪ Reading Source: {os.path.basename(existing_file)}")
             with open(existing_file, "r") as f:
                 content = f.read()
-                existing_rules_list = parse_hcl_rules(content)
+                existing_rules_list = azure_helper.parse_hcl_rules(content)
                 m_var = re.search(r"(\w+)\s*=", content)
                 if m_var: var_name = m_var.group(1)
 

@@ -27,6 +27,10 @@ AzureRule = namedtuple(
     ],
 )
 
+# --- PRE-COMPILED REGEXES FOR HCL PARSING ---
+RE_RULE_BLOCK = re.compile(r"\{\s*(.*?)\s*\}", re.DOTALL)
+RE_KV_STRING = re.compile(r'(\w+)\s*=\s*"(.*?)"')
+RE_KV_INT = re.compile(r'(\w+)\s*=\s*(\d+)')
 
 def parse_project_tfvars(filepath: str) -> Dict[str, Any]:
     """
@@ -179,6 +183,36 @@ def get_nsg_name(subnet_name: str, env_level: str) -> str:
     if not env_level:
         raise ValueError("Environment Level is required for NSG name construction")
     return f"NSG-{env_level.upper()}-{subnet_name}"
+
+
+def parse_hcl_rules(content: str) -> List[Dict[str, Any]]:
+    """
+    Parses a Terraform list of maps (HCL) into a list of Python dictionaries.
+    Regex-based parsing to avoid requiring HCL library.
+    """
+    rules = []
+    # Find list content: var = [ ... ]
+    list_match = re.search(r"=\s*\[(.*)\]", content, re.DOTALL)
+    if not list_match:
+        return rules
+
+    inner_content = list_match.group(1)
+
+    # Iterate through each rule block { ... }
+    for match in RE_RULE_BLOCK.finditer(inner_content):
+        block_body = match.group(1)
+        rule = {}
+        # Parse Strings
+        for kv in RE_KV_STRING.finditer(block_body):
+            rule[kv.group(1)] = kv.group(2)
+        # Parse Integers
+        for kv in RE_KV_INT.finditer(block_body):
+            rule[kv.group(1)] = int(kv.group(2))
+
+        if rule:
+            rules.append(rule)
+
+    return rules
 
 
 def fetch_azure_nsg_rules(
