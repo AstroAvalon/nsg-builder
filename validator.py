@@ -208,6 +208,39 @@ def validate(excel_file, base_rules_file, repo_root):
     for row in client_rules:
         subnet_name = row.get("Azure Subnet Name")
         if pd.isna(subnet_name): continue
+
+        # Handle "ALL" -> Expand to all subnets with NSG
+        if str(subnet_name).strip().upper() == "ALL":
+            target_keys = {k for k, v in subnet_config.items() if v.get("has_nsg", False)}
+            for key in target_keys:
+                if str(key).lower() == "gatewaysubnet": continue
+
+                # Calculate CIDR
+                current_cidr = ""
+                conf = subnet_config.get(key)
+                if conf:
+                    current_cidr = azure_helper.calculate_subnet_cidr(
+                        vnet_cidr, conf.get("newbits", 0), conf.get("netnum", 0)
+                    )
+
+                # Replace placeholders
+                src = clean_ip(row["Source"]).replace("{{CurrentSubnet}}", current_cidr).replace("{{VNetCIDR}}", vnet_cidr)
+                dst = clean_ip(row["Destination"]).replace("{{CurrentSubnet}}", current_cidr).replace("{{VNetCIDR}}", vnet_cidr)
+
+                rule = {
+                    "subnet_key": key,
+                    "direction": normalize_direction(row["Direction"]),
+                    "access": normalize_access(row["Access"]),
+                    "protocol": normalize_protocol(row["Protocol"]),
+                    "source": src,
+                    "destination": dst,
+                    "dest_port": clean_port(row["Destination Port"]),
+                    "desc": str(row.get("Description", ""))[:50],
+                    "origin": "Client Excel (Expanded ALL)"
+                }
+                validations.append(rule)
+            continue
+
         key = name_to_key.get(subnet_name, subnet_name)
 
         rule = {
