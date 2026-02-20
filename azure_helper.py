@@ -1,7 +1,7 @@
 """
-Azure Helper Module for NSG Automation
-Handles parsing of Terraform variables and interaction with Azure APIs (mock-friendly).
+Azure Helper Module
 
+Handles parsing of Terraform variables and interaction with Azure APIs.
 """
 
 import re
@@ -27,7 +27,7 @@ AzureRule = namedtuple(
     ],
 )
 
-# --- PRE-COMPILED REGEXES FOR HCL PARSING ---
+# Regex for HCL Parsing
 RE_RULE_BLOCK = re.compile(r"\{\s*(.*?)\s*\}", re.DOTALL)
 RE_KV_STRING = re.compile(r'(\w+)\s*=\s*"(.*?)"')
 RE_KV_INT = re.compile(r'(\w+)\s*=\s*(\d+)')
@@ -39,7 +39,7 @@ def parse_project_tfvars(filepath: str) -> Dict[str, Any]:
     """
     variables = {}
     if not os.path.exists(filepath):
-        print(f"⚠️ Warning: project.auto.tfvars not found at {filepath}")
+        print(f"Warning: project.auto.tfvars not found at {filepath}")
         return variables
 
     with open(filepath, "r") as f:
@@ -52,7 +52,6 @@ def parse_project_tfvars(filepath: str) -> Dict[str, Any]:
         inner_content = project_match.group(1)
 
         # 1. Extract List Values: key = ["val1", "val2"]
-        # We handle this first to avoid partial string matching later
         list_matches = re.finditer(r'(\w+)\s*=\s*\[(.*?)\]', inner_content, re.DOTALL)
         for match in list_matches:
             key = match.group(1)
@@ -62,8 +61,6 @@ def parse_project_tfvars(filepath: str) -> Dict[str, Any]:
             variables[key] = items
 
         # 2. Extract String Values: key = "value"
-        # We iterate again, but might overwrite list keys if not careful.
-        # Simple regex strategy: find string pairs
         string_matches = re.findall(r'(\w+)\s*=\s*"(.*?)"', inner_content)
         for key, value in string_matches:
             # Only add if not already present (lists take precedence in this simple parser)
@@ -83,7 +80,7 @@ def parse_subnet_config(filepath: str) -> Dict[str, Dict]:
     """
     subnets = {}
     if not os.path.exists(filepath):
-        print(f"⚠️ Warning: locals.tf not found at {filepath}")
+        print(f"Warning: locals.tf not found at {filepath}")
         return subnets
 
     with open(filepath, "r") as f:
@@ -155,17 +152,16 @@ def calculate_subnet_cidr(base_cidr: str, newbits: int, netnum: int) -> str:
         if 0 <= netnum < len(subnets):
             return str(subnets[netnum])
         else:
-            print(f"❌ Error: netnum {netnum} out of range for base {base_cidr} with newbits {newbits}")
+            print(f"Error: netnum {netnum} out of range for base {base_cidr} with newbits {newbits}")
             return ""
     except Exception as e:
-        print(f"❌ Error calculating CIDR: {e}")
+        print(f"Error calculating CIDR: {e}")
         return ""
 
 
 def get_resource_group_name(vars: Dict[str, str]) -> str:
     """
     Constructs Resource Group name: rg-{customer}-{client_code}-{location}-{environment_level}-network
-    Forces all components to lowercase.
     """
     required = ["customer", "client_code", "location", "environment_level"]
     missing = [k for k in required if k not in vars]
@@ -178,7 +174,6 @@ def get_resource_group_name(vars: Dict[str, str]) -> str:
 def get_nsg_name(subnet_name: str, env_level: str) -> str:
     """
     Constructs NSG name: NSG-{environment_level}-{subnet_name}
-    Ensures environment level is uppercase.
     """
     if not env_level:
         raise ValueError("Environment Level is required for NSG name construction")
@@ -188,7 +183,6 @@ def get_nsg_name(subnet_name: str, env_level: str) -> str:
 def parse_hcl_rules(content: str) -> List[Dict[str, Any]]:
     """
     Parses a Terraform list of maps (HCL) into a list of Python dictionaries.
-    Regex-based parsing to avoid requiring HCL library.
     """
     rules = []
     # Find list content: var = [ ... ]
@@ -220,13 +214,12 @@ def fetch_azure_nsg_rules(
 ) -> List[AzureRule]:
     """
     Connects to Azure to fetch NSG rules.
-    Mock-friendly: Uses try-import for Azure libraries.
     """
     try:
         from azure.identity import AzureCliCredential
         from azure.mgmt.network import NetworkManagementClient
     except ImportError:
-        print("⚠️ Azure libraries not installed. Skipping live check.")
+        print("Azure libraries not installed. Skipping live check.")
         return []
 
     try:
@@ -240,13 +233,13 @@ def fetch_azure_nsg_rules(
                         capture_output=True, text=True, check=True,
                     )
                     subscription_id = result.stdout.strip()
-                    print(f"ℹ️  Using active Azure Subscription: {subscription_id}")
+                    print(f"Using active Azure Subscription: {subscription_id}")
                 except (subprocess.CalledProcessError, FileNotFoundError):
-                    print("❌ Error: 'az' CLI not found or not logged in.")
+                    print("Error: 'az' CLI not found or not logged in.")
                     return []
 
         if not subscription_id:
-            print("⚠️ No Subscription ID provided for Azure check.")
+            print("No Subscription ID provided for Azure check.")
             return []
 
         network_client = NetworkManagementClient(credential, subscription_id)
@@ -266,7 +259,7 @@ def fetch_azure_nsg_rules(
 
     except Exception as e:
         if "CredentialUnavailableError" in str(type(e)) or "az login" in str(e).lower():
-            print("❌ Azure Authentication Failed. Please run 'az login' to authenticate.")
+            print("Azure Authentication Failed. Please run 'az login' to authenticate.")
         else:
-            print(f"❌ Azure API Error for {nsg_name}: {e}")
+            print(f"Azure API Error for {nsg_name}: {e}")
         return []
