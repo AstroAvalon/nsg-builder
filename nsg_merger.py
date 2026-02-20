@@ -253,11 +253,33 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str):
                     prio_val = int(float(row["Priority"]))
             except: pass
 
-            if prio_val:
-                if prio_val in merged_rules:
-                     print(f"   Client Rule Conflict: Priority {prio_val} already exists. Skipping Client Rule.")
-                     continue
-            else:
+            if prio_val and prio_val in merged_rules:
+                existing = merged_rules[prio_val]
+                is_identical = True
+                comparisons = [
+                    ("direction", api_map.get(raw_dir, "Inbound")),
+                    ("access", api_map.get(str(row["Access"]).upper().strip(), "Allow")),
+                    ("protocol", api_map.get(str(row["Protocol"]).upper().strip(), "Tcp")),
+                    ("source_address_prefix", clean_ip(row['Source'])),
+                    ("destination_address_prefix", clean_ip(row['Destination'])),
+                    ("destination_port_range", clean_port(row['Destination Port'])),
+                    ("source_port_range", "*")
+                ]
+
+                for key, new_val in comparisons:
+                    existing_val = existing.get(key)
+                    if str(existing_val).strip().lower() != str(new_val).strip().lower():
+                        is_identical = False
+                        break
+
+                if is_identical:
+                    print(f"   Skipping Identical Rule at Priority {prio_val}")
+                    continue
+                else:
+                    print(f"   Conflict at Priority {prio_val}. Assigning new priority.")
+                    prio_val = None
+
+            if not prio_val:
                 target_set = used_priorities_in if is_inbound else used_priorities_out
                 while prio_counters[dir_short] in target_set or prio_counters[dir_short] in merged_rules:
                     prio_counters[dir_short] += PRIORITY_STEP

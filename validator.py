@@ -185,6 +185,12 @@ def validate(excel_file, base_rules_file, repo_root):
         subnet_name = row.get("Azure Subnet Name")
         if pd.isna(subnet_name): continue
 
+        prio_display = "N/A"
+        try:
+            if not pd.isna(row["Priority"]) and str(row["Priority"]).strip() != "":
+                prio_display = str(int(float(row["Priority"])))
+        except: pass
+
         # Handle "ALL" -> Expand to all subnets with NSG
         if str(subnet_name).strip().upper() == "ALL":
             target_keys = {k for k, v in subnet_config.items() if v.get("has_nsg", False)}
@@ -211,6 +217,7 @@ def validate(excel_file, base_rules_file, repo_root):
                     "destination": dst,
                     "dest_port": clean_port(row["Destination Port"]),
                     "desc": str(row.get("Description", ""))[:50],
+                    "priority": prio_display,
                     "origin": "Client Excel (Expanded ALL)"
                 }
                 validations.append(rule)
@@ -227,6 +234,7 @@ def validate(excel_file, base_rules_file, repo_root):
             "destination": clean_ip(row["Destination"]),
             "dest_port": clean_port(row["Destination Port"]),
             "desc": str(row.get("Description", ""))[:50],
+            "priority": prio_display,
             "origin": "Client Excel"
         }
         validations.append(rule)
@@ -249,6 +257,12 @@ def validate(excel_file, base_rules_file, repo_root):
                 src = clean_ip(row["Source"]).replace("{{CurrentSubnet}}", current_cidr).replace("{{VNetCIDR}}", vnet_cidr)
                 dst = clean_ip(row["Destination"]).replace("{{CurrentSubnet}}", current_cidr).replace("{{VNetCIDR}}", vnet_cidr)
 
+                prio_display = "N/A"
+                try:
+                    if not pd.isna(row["Priority"]) and str(row["Priority"]).strip() != "":
+                        prio_display = str(int(float(row["Priority"])))
+                except: pass
+
                 rule = {
                     "subnet_key": key,
                     "direction": normalize_direction(row["Direction"]),
@@ -258,6 +272,7 @@ def validate(excel_file, base_rules_file, repo_root):
                     "destination": dst,
                     "dest_port": clean_port(row["Destination Port"]),
                     "desc": f"[Base] {str(row.get('Description', ''))[:30]}",
+                    "priority": prio_display,
                     "origin": "Base Rules"
                 }
                 validations.append(rule)
@@ -294,10 +309,10 @@ def validate(excel_file, base_rules_file, repo_root):
                 break
 
         if found:
-            print(f"[{expected['subnet_key']}] Found: {expected['desc']}")
+            print(f"[{expected['subnet_key']}] Found Rule {expected.get('priority', 'N/A')}: {expected['desc']}")
             stats["ok"] += 1
         else:
-            print(f"[{expected['subnet_key']}] MISSING: {expected['desc']}")
+            print(f"[{expected['subnet_key']}] MISSING Rule {expected.get('priority', 'N/A')}: {expected['desc']}")
             print(f"    Expected: {expected['access']} {expected['direction']} {expected['protocol']} Src:{expected['source']} Dst:{expected['destination']} Port:{expected['dest_port']}")
             stats["missing"] += 1
 
