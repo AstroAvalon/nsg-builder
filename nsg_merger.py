@@ -350,6 +350,16 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str):
             r.get("priority", 99999)
         ))
 
+        # Check for changes
+        existing_rules_list.sort(key=lambda r: (
+            0 if "in" in str(r.get("direction")).lower() else 1,
+            r.get("priority", 99999)
+        ))
+
+        if existing_file and final_list == existing_rules_list:
+            print(f"   No changes detected. Skipping write.")
+            continue
+
         print(f"   Writing {len(final_list)} rules...")
         os.makedirs(os.path.dirname(new_filename), exist_ok=True)
         with open(new_filename, "w") as f:
