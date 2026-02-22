@@ -33,6 +33,7 @@ This will read the requests, check for existing rules in `tfvars/`, and generate
 
 - `--base-rules <file>`: Apply a set of base rules to all subnets.
 - `--repo-root <path>`: Specify the root directory of the repository (defaults to current).
+- `--apply`: Automatically backup existing files and overwrite them with new rules.
 
 ### Validation
 

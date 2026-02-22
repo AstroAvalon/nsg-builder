@@ -75,6 +75,22 @@ locals {
         cidr = azure_helper.calculate_subnet_cidr("10.0.0.0/16", 8, 1)
         self.assertEqual(cidr, "10.0.1.0/24")
 
+    def test_validate_address_prefix(self):
+        # Valid cases
+        self.assertTrue(azure_helper.validate_address_prefix("1.2.3.4"))
+        self.assertTrue(azure_helper.validate_address_prefix("10.0.0.0/24"))
+        self.assertTrue(azure_helper.validate_address_prefix("Internet"))
+        self.assertTrue(azure_helper.validate_address_prefix("VirtualNetwork"))
+        self.assertTrue(azure_helper.validate_address_prefix("Storage.WestUS"))
+        self.assertTrue(azure_helper.validate_address_prefix("*"))
+        self.assertTrue(azure_helper.validate_address_prefix("Any"))
+
+        # Invalid cases
+        self.assertFalse(azure_helper.validate_address_prefix("1.2.3.256"))
+        self.assertFalse(azure_helper.validate_address_prefix("InvalidTag"))
+        self.assertFalse(azure_helper.validate_address_prefix("MyCustomTag"))
+        self.assertFalse(azure_helper.validate_address_prefix(""))
+
 
 class TestNSGMerger(unittest.TestCase):
 
@@ -337,6 +353,132 @@ class TestNSGMerger(unittest.TestCase):
 
             self.assertIn("AppSubnet_IN_Allow4000", written_content)
             self.assertIn('name                       = "existing_rule"', written_content)
+
+    @patch("nsg_merger.find_existing_file")
+    def test_merge_with_apply_backup(self, mock_find_file):
+        # Mock basics
+        mock_df = MagicMock()
+        mock_pd.read_excel.return_value = mock_df
+        mock_df.columns.str.strip.return_value = ["Azure Subnet Name"]
+
+        # Ensure we target AppSubnet
+        mock_col = MagicMock()
+        mock_col.dropna.return_value.unique.return_value = ["AppSubnet"]
+
+        def getitem_side_effect(arg):
+             if arg == "Azure Subnet Name": return mock_col
+             return mock_df # Return self for filtering
+
+        mock_df.__getitem__.side_effect = getitem_side_effect
+
+        # Add a new rule to force a change
+        row_data = {
+            "Azure Subnet Name": "AppSubnet",
+            "Priority": "1000",
+            "Direction": "Inbound",
+            "Access": "Allow",
+            "Source": "1.2.3.4",
+            "Destination": "*",
+            "Protocol": "Tcp",
+            "Destination Port": "80",
+            "Description": "New Rule",
+        }
+        mock_row = MagicMock()
+        mock_row.__getitem__ = lambda self, k: row_data[k]
+        mock_df.iterrows.return_value = [(0, mock_row)]
+
+        existing_content = ""
+        existing_file = "tfvars/nsg_appsubnet.auto.tfvars"
+        backup_file = "tfvars/nsg_appsubnet.auto.tfvars.bak"
+        mock_find_file.return_value = existing_file
+
+        project_vars = {"address_space": ["10.0.0.0/16"]}
+        subnet_config = {"AppSubnet": {"name": "AppSubnet", "has_nsg": True}}
+
+        with patch("azure_helper.parse_project_tfvars", return_value=project_vars), \
+             patch("azure_helper.parse_subnet_config", return_value=subnet_config), \
+             patch("os.path.exists", return_value=True), \
+             patch("glob.glob", return_value=[existing_file]), \
+             patch("builtins.open", mock_open(read_data=existing_content)) as mock_file:
+
+            # RUN with apply_changes=True
+            nsg_merger.merge_nsg_rules("client.xlsx", None, ".", apply_changes=True)
+
+            # Check if backup was opened for writing
+            # We expect: open(existing, r), open(backup, w), open(existing, w)
+            calls = mock_file.call_args_list
+
+            # Check for backup write
+            backup_write_called = False
+            for call in calls:
+                args = call[0]
+                filename = args[0]
+                mode = args[1] if len(args) > 1 else 'r'
+                if 'w' in mode and filename == backup_file:
+                    backup_write_called = True
+
+            self.assertTrue(backup_write_called, "Backup file was not opened for writing")
+
+            # Check final write is to EXISTING file (overwrite), not _updated
+            final_write_path = calls[-1][0][0]
+            self.assertEqual(final_write_path, existing_file)
+
+    @patch("nsg_merger.find_existing_file")
+    def test_merge_validation_warning(self, mock_find_file):
+        # Mock basics
+        mock_df = MagicMock()
+        mock_pd.read_excel.return_value = mock_df
+
+        # Single invalid rule
+        row_data = {
+            "Azure Subnet Name": "AppSubnet",
+            "Priority": "1000",
+            "Direction": "Inbound",
+            "Access": "Allow",
+            "Source": "InvalidIP",
+            "Destination": "*",
+            "Protocol": "Tcp",
+            "Destination Port": "80",
+            "Description": "Invalid Rule",
+        }
+        mock_row = MagicMock()
+        mock_row.__getitem__ = lambda self, k: row_data[k]
+
+        # Mock Column for unique() check
+        mock_col = MagicMock()
+        mock_col.dropna.return_value.unique.return_value = ["AppSubnet"]
+
+        def getitem_side_effect(arg):
+             if arg == "Azure Subnet Name": return mock_col
+             return mock_df # Return dataframe for boolean filtering
+
+        mock_df.__getitem__.side_effect = getitem_side_effect
+        mock_df.columns.str.strip.return_value = ["Azure Subnet Name"]
+
+        mock_df.iterrows.return_value = [(0, mock_row)]
+
+        mock_find_file.return_value = None # New file
+
+        project_vars = {"address_space": ["10.0.0.0/16"]}
+        subnet_config = {"AppSubnet": {"name": "AppSubnet", "has_nsg": True}}
+
+        with patch("azure_helper.parse_project_tfvars", return_value=project_vars), \
+             patch("azure_helper.parse_subnet_config", return_value=subnet_config), \
+             patch("os.path.exists", return_value=True), \
+             patch("glob.glob", return_value=[]), \
+             patch("builtins.open", mock_open()), \
+             patch("builtins.print") as mock_print:
+
+            nsg_merger.merge_nsg_rules("client.xlsx", None, ".")
+
+            # Check if warning was printed
+            warning_printed = False
+            for call in mock_print.call_args_list:
+                msg = str(call[0][0])
+                if "WARNING" in msg and "InvalidIP" in msg:
+                    warning_printed = True
+
+            self.assertTrue(warning_printed, "Warning for invalid IP was not printed")
 
 
 if __name__ == "__main__":
