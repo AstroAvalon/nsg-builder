@@ -17,7 +17,7 @@ terraform {
 
   # Backend configuration for Terraform State
   # This will be initialized with -backend-config parameters in the pipeline
-  backend "azurerm" {}
+  #backend "azurerm" {}
 }
 
 provider "azurerm" {
