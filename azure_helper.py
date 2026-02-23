@@ -32,6 +32,47 @@ RE_RULE_BLOCK = re.compile(r"\{\s*(.*?)\s*\}", re.DOTALL)
 RE_KV_STRING = re.compile(r'(\w+)\s*=\s*"(.*?)"')
 RE_KV_INT = re.compile(r'(\w+)\s*=\s*(\d+)')
 
+# Common Azure Service Tags
+COMMON_SERVICE_TAGS = {
+    "Internet", "VirtualNetwork", "AzureLoadBalancer", "AppService", "Storage",
+    "Sql", "KeyVault", "ContainerRegistry", "AzureActiveDirectory", "AzureCloud",
+    "EventHub", "ServiceBus", "GatewayManager", "AzureMonitor", "BatchNodeManagement"
+}
+
+def validate_address_prefix(value: str) -> bool:
+    """
+    Validates if the value is a valid IPv4/IPv6 address, CIDR, or known Service Tag.
+    Returns True if valid, False otherwise.
+    """
+    if not value:
+        return False
+
+    val_str = str(value).strip()
+
+    # Check for Any/All
+    if val_str == "*" or val_str.lower() in ["any", "all"]:
+        return True
+
+    # Check for IP or CIDR
+    try:
+        ipaddress.ip_network(val_str, strict=False)
+        return True
+    except ValueError:
+        pass
+
+    try:
+        ipaddress.ip_address(val_str)
+        return True
+    except ValueError:
+        pass
+
+    # Check if it matches or starts with a known Service Tag
+    for tag in COMMON_SERVICE_TAGS:
+        if val_str.lower() == tag.lower() or val_str.lower().startswith(tag.lower() + "."):
+             return True
+
+    return False
+
 def parse_project_tfvars(filepath: str) -> Dict[str, Any]:
     """
     Parses 'project.auto.tfvars' to extract project-level variables.

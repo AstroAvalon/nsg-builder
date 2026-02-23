@@ -35,6 +35,7 @@ def parse_arguments():
     parser.add_argument("excel_file", nargs="?", help="Path to the Excel request file", default=None)
     parser.add_argument("--base-rules", help="Path to Base Rules Excel file (Applies to ALL subnets)", default=None)
     parser.add_argument("--repo-root", default=".", help="Root directory of the repo")
+    parser.add_argument("--apply", action="store_true", help="Apply changes directly (overwrite existing files with backup)")
     return parser.parse_args()
 
 def find_existing_file(subnet_name: str, valid_files: List[str]) -> Optional[str]:
@@ -83,7 +84,7 @@ def clean_ip(val: str) -> str:
         return "*"
     return RE_WHITESPACE.sub("", str(val)).strip(",")
 
-def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str):
+def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply_changes: bool = False):
     tfvars_dir = os.path.join(repo_root, "tfvars")
     if not os.path.exists(tfvars_dir):
         print(f"Error: Could not find 'tfvars' folder at: {tfvars_dir}")
@@ -183,10 +184,15 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str):
             for r in existing_rules_list:
                 merged_rules[r['priority']] = r
 
-            base_name = os.path.basename(existing_file)
-            name_part, _ = os.path.splitext(base_name)
-            name_part = name_part.replace(".auto", "")
-            new_filename = os.path.join(tfvars_dir, f"{name_part}{OUTPUT_SUFFIX}.auto.tfvars")
+            if apply_changes:
+                # Overwrite mode: Use original filename
+                new_filename = existing_file
+            else:
+                # Safety mode: Use _updated suffix
+                base_name = os.path.basename(existing_file)
+                name_part, _ = os.path.splitext(base_name)
+                name_part = name_part.replace(".auto", "")
+                new_filename = os.path.join(tfvars_dir, f"{name_part}{OUTPUT_SUFFIX}.auto.tfvars")
         else:
             clean_name = RE_ALPHANUMERIC.sub("", str(subnet_key)).lower()
             new_filename = os.path.join(tfvars_dir, f"nsg_{clean_name}.auto.tfvars")
@@ -286,6 +292,18 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str):
                 prio_val = prio_counters[dir_short]
                 prio_counters[dir_short] += PRIORITY_STEP
 
+            src_val = clean_ip(row['Source'])
+            dst_val = clean_ip(row['Destination'])
+
+            # Validation Warning
+            if azure_helper:
+                for ip in src_val.split(','):
+                    if ip.strip() and not azure_helper.validate_address_prefix(ip.strip()):
+                        print(f"⚠️  WARNING: Rule '{prio_val}' has potentially invalid Source '{ip}'. Please review manually.")
+                for ip in dst_val.split(','):
+                    if ip.strip() and not azure_helper.validate_address_prefix(ip.strip()):
+                        print(f"⚠️  WARNING: Rule '{prio_val}' has potentially invalid Destination '{ip}'. Please review manually.")
+
             merged_rules[prio_val] = {
                 "name": f"{RE_ALPHANUMERIC.sub('', str(subnet_key))}_{dir_short}_{api_map.get(str(row['Access']).upper().strip(), 'Allow')}{prio_val}",
                 "description": str(row['Description'])[:100],
@@ -293,9 +311,9 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str):
                 "direction": api_map.get(raw_dir, "Inbound"),
                 "access": api_map.get(str(row["Access"]).upper().strip(), "Allow"),
                 "protocol": api_map.get(str(row["Protocol"]).upper().strip(), "Tcp"),
-                "source_address_prefix": clean_ip(row['Source']),
+                "source_address_prefix": src_val,
                 "source_port_range": "*",
-                "destination_address_prefix": clean_ip(row['Destination']),
+                "destination_address_prefix": dst_val,
                 "destination_port_range": clean_port(row['Destination Port'])
             }
             if is_inbound: used_priorities_in.add(prio_val)
@@ -360,6 +378,16 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str):
             print(f"   No changes detected. Skipping write.")
             continue
 
+        # Backup if applying directly
+        if apply_changes and existing_file and os.path.exists(existing_file):
+            backup_path = existing_file + ".bak"
+            try:
+                with open(existing_file, "r") as src, open(backup_path, "w") as dst:
+                    dst.write(src.read())
+                print(f"   Backup created: {os.path.basename(backup_path)}")
+            except Exception as e:
+                print(f"   Warning: Failed to create backup: {e}")
+
         print(f"   Writing {len(final_list)} rules...")
         os.makedirs(os.path.dirname(new_filename), exist_ok=True)
         with open(new_filename, "w") as f:
@@ -373,4 +401,4 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str):
 
 if __name__ == "__main__":
     args = parse_arguments()
-    merge_nsg_rules(args.excel_file, args.base_rules, args.repo_root)
+    merge_nsg_rules(args.excel_file, args.base_rules, args.repo_root, args.apply)
