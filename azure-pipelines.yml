@@ -1,0 +1,231 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  # Load secrets from Key Vault (via Variable Group)
+  # Ensure you create a Variable Group named 'terraform-secrets' linked to your Key Vault
+  - group: terraform-secrets
+
+  # Standard variables
+  - name: serviceConnection
+    value: 'azure-connection' # Update with your Service Connection name
+  - name: tf_version
+    value: 'latest'
+  - name: workingDirectory
+    value: '$(System.DefaultWorkingDirectory)'
+
+stages:
+  # ------------------------------------------------------------------
+  # PLAN Stage (Create/Update)
+  # Runs when destroy_env is NOT true
+  # ------------------------------------------------------------------
+  - stage: Plan
+    displayName: 'Terraform Plan'
+    condition: ne(variables['destroy_env'], 'true')
+    jobs:
+      - job: Plan
+        displayName: 'Plan Infrastructure'
+        steps:
+          - task: TerraformInstaller@0
+            inputs:
+              terraformVersion: '$(tf_version)'
+
+          - task: AzureCLI@2
+            displayName: 'Terraform Init'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              workingDirectory: '$(workingDirectory)'
+              inlineScript: |
+                # Initialize Terraform with backend configuration from variables
+                terraform init \
+                  -backend-config="resource_group_name=$(backend_rg)" \
+                  -backend-config="storage_account_name=$(backend_sa)" \
+                  -backend-config="container_name=$(backend_container)" \
+                  -backend-config="key=$(backend_key)"
+
+          - task: AzureCLI@2
+            displayName: 'Terraform Plan'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              workingDirectory: '$(workingDirectory)'
+              inlineScript: |
+                # Run Plan and output to file
+                # Pass common variables like admin passwords from Key Vault
+                export TF_VAR_common_admin_password="$(vm-admin-password)"
+
+                terraform plan -out=tfplan -input=false
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Plan Artifact'
+            inputs:
+              targetPath: '$(workingDirectory)/tfplan'
+              artifact: 'tfplan'
+              publishLocation: 'pipeline'
+
+  # ------------------------------------------------------------------
+  # APPLY Stage (Create/Update)
+  # Runs when destroy_env is NOT true. Requires Approval on Environment.
+  # ------------------------------------------------------------------
+  - stage: Apply
+    displayName: 'Terraform Apply'
+    dependsOn: Plan
+    condition: and(succeeded(), ne(variables['destroy_env'], 'true'))
+    jobs:
+      - deployment: Apply
+        displayName: 'Apply Infrastructure'
+        environment: 'production' # Configure approvals on this Environment in ADO
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: TerraformInstaller@0
+                  inputs:
+                    terraformVersion: '$(tf_version)'
+
+                - task: DownloadPipelineArtifact@2
+                  displayName: 'Download Plan Artifact'
+                  inputs:
+                    buildType: 'current'
+                    artifactName: 'tfplan'
+                    targetPath: '$(workingDirectory)'
+
+                - task: AzureCLI@2
+                  displayName: 'Terraform Init'
+                  inputs:
+                    azureSubscription: '$(serviceConnection)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    workingDirectory: '$(workingDirectory)'
+                    inlineScript: |
+                      terraform init \
+                        -backend-config="resource_group_name=$(backend_rg)" \
+                        -backend-config="storage_account_name=$(backend_sa)" \
+                        -backend-config="container_name=$(backend_container)" \
+                        -backend-config="key=$(backend_key)"
+
+                - task: AzureCLI@2
+                  displayName: 'Terraform Apply'
+                  inputs:
+                    azureSubscription: '$(serviceConnection)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    workingDirectory: '$(workingDirectory)'
+                    inlineScript: |
+                      # Apply the plan file
+                      # Note: Sensitive variables are embedded in the plan file, but we re-export just in case
+                      export TF_VAR_common_admin_password="$(vm-admin-password)"
+
+                      terraform apply -input=false tfplan
+
+  # ------------------------------------------------------------------
+  # DESTROY PLAN Stage
+  # Runs ONLY when destroy_env is true
+  # ------------------------------------------------------------------
+  - stage: DestroyPlan
+    displayName: 'Plan Destroy'
+    condition: eq(variables['destroy_env'], 'true')
+    jobs:
+      - job: PlanDestroy
+        displayName: 'Plan Destruction'
+        steps:
+          - task: TerraformInstaller@0
+            inputs:
+              terraformVersion: '$(tf_version)'
+
+          - task: AzureCLI@2
+            displayName: 'Terraform Init'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              workingDirectory: '$(workingDirectory)'
+              inlineScript: |
+                terraform init \
+                  -backend-config="resource_group_name=$(backend_rg)" \
+                  -backend-config="storage_account_name=$(backend_sa)" \
+                  -backend-config="container_name=$(backend_container)" \
+                  -backend-config="key=$(backend_key)"
+
+          - task: AzureCLI@2
+            displayName: 'Terraform Plan Destroy'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              workingDirectory: '$(workingDirectory)'
+              inlineScript: |
+                export TF_VAR_common_admin_password="$(vm-admin-password)"
+
+                terraform plan -destroy -out=tfplan -input=false
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Plan Artifact'
+            inputs:
+              targetPath: '$(workingDirectory)/tfplan'
+              artifact: 'tfplan-destroy'
+              publishLocation: 'pipeline'
+
+  # ------------------------------------------------------------------
+  # DESTROY APPLY Stage
+  # Runs ONLY when destroy_env is true. Requires Approval.
+  # ------------------------------------------------------------------
+  - stage: DestroyApply
+    displayName: 'Apply Destroy'
+    dependsOn: DestroyPlan
+    condition: and(succeeded(), eq(variables['destroy_env'], 'true'))
+    jobs:
+      - deployment: Destroy
+        displayName: 'Destroy Infrastructure'
+        environment: 'production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: TerraformInstaller@0
+                  inputs:
+                    terraformVersion: '$(tf_version)'
+
+                - task: DownloadPipelineArtifact@2
+                  displayName: 'Download Plan Artifact'
+                  inputs:
+                    buildType: 'current'
+                    artifactName: 'tfplan-destroy'
+                    targetPath: '$(workingDirectory)'
+
+                - task: AzureCLI@2
+                  displayName: 'Terraform Init'
+                  inputs:
+                    azureSubscription: '$(serviceConnection)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    workingDirectory: '$(workingDirectory)'
+                    inlineScript: |
+                      terraform init \
+                        -backend-config="resource_group_name=$(backend_rg)" \
+                        -backend-config="storage_account_name=$(backend_sa)" \
+                        -backend-config="container_name=$(backend_container)" \
+                        -backend-config="key=$(backend_key)"
+
+                - task: AzureCLI@2
+                  displayName: 'Terraform Destroy'
+                  inputs:
+                    azureSubscription: '$(serviceConnection)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    workingDirectory: '$(workingDirectory)'
+                    inlineScript: |
+                      # Force destroy using the plan
+                      terraform apply -input=false tfplan

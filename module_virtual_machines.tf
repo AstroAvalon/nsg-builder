@@ -30,7 +30,12 @@ module "virtual_machines" {
   image          = each.value.image
   size           = each.value.size
   admin_username = each.value.admin_username
-  admin_password = each.value.admin_password
+
+  # Use the common admin password (variable) if provided.
+  # Fallback to the locally generated random_password resource (for bootstrap scenarios).
+  # If neither is available, use null (module handles required logic).
+  admin_password = try(coalesce(each.value.admin_password, var.common_admin_password, random_password.vm_admin.result), null)
+
   ssh_public_key = each.value.ssh_public_key
   data_disks     = each.value.data_disks
 

@@ -28,3 +28,10 @@ variable "virtual_machines" {
     error_message = "The 'role' attribute must be 5 characters or less to fit within the 15-character VM name limit."
   }
 }
+
+variable "common_admin_password" {
+  description = "A common admin password to use for VMs if not specified in the individual VM config. This is typically provided via pipeline variables from Key Vault."
+  type        = string
+  sensitive   = true
+  default     = null
+}
