@@ -36,6 +36,7 @@ def parse_arguments():
     parser.add_argument("--base-rules", help="Path to Base Rules Excel file (Applies to ALL subnets)", default=None)
     parser.add_argument("--repo-root", default=".", help="Root directory of the repo")
     parser.add_argument("--apply", action="store_true", help="Apply changes directly (overwrite existing files with backup)")
+    parser.add_argument("--check", action="store_true", help="Dry run: Check for changes without writing to files.")
     return parser.parse_args()
 
 def find_existing_file(subnet_name: str, valid_files: List[str]) -> Optional[str]:
@@ -84,7 +85,7 @@ def clean_ip(val: str) -> str:
         return "*"
     return RE_WHITESPACE.sub("", str(val)).strip(",")
 
-def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply_changes: bool = False):
+def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply_changes: bool = False, check_mode: bool = False):
     tfvars_dir = os.path.join(repo_root, "tfvars")
     if not os.path.exists(tfvars_dir):
         print(f"Error: Could not find 'tfvars' folder at: {tfvars_dir}")
@@ -216,9 +217,16 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply
                     print(f"   Querying Azure NSG: {nsg_name}")
                     azure_rules = azure_helper.fetch_azure_nsg_rules(rg_name, nsg_name, sub_id)
 
+                    # Track existing rule names to avoid duplicate keys (Same name, different priority)
+                    existing_rule_names = {r['name'] for r in merged_rules.values()}
+
                     for az_rule in azure_rules:
                         is_inbound = "IN" in az_rule.direction.upper()
                         if az_rule.priority in merged_rules:
+                            continue
+
+                        if az_rule.name in existing_rule_names:
+                            print(f"   ⚠️ CONFLICT: Rule '{az_rule.name}' exists in TF but with different priority. Skipping import.")
                             continue
 
                         print(f"   DRIFT: Found Priority {az_rule.priority} in Azure. Importing...")
@@ -228,7 +236,7 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply
                             "priority": az_rule.priority,
                             "direction": az_rule.direction,
                             "access": az_rule.access,
-                            "protocol": az_rule.protocol,
+                            "protocol": api_map.get(str(az_rule.protocol).upper(), "Tcp"),
                             "source_address_prefix": az_rule.source,
                             "source_port_range": "*",
                             "destination_address_prefix": az_rule.destination,
@@ -380,25 +388,31 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply
 
         # Backup if applying directly
         if apply_changes and existing_file and os.path.exists(existing_file):
-            backup_path = existing_file + ".bak"
-            try:
-                with open(existing_file, "r") as src, open(backup_path, "w") as dst:
-                    dst.write(src.read())
-                print(f"   Backup created: {os.path.basename(backup_path)}")
-            except Exception as e:
-                print(f"   Warning: Failed to create backup: {e}")
+            if check_mode:
+                print(f"   [DRY RUN] Would create backup: {os.path.basename(existing_file)}.bak")
+            else:
+                backup_path = existing_file + ".bak"
+                try:
+                    with open(existing_file, "r") as src, open(backup_path, "w") as dst:
+                        dst.write(src.read())
+                    print(f"   Backup created: {os.path.basename(backup_path)}")
+                except Exception as e:
+                    print(f"   Warning: Failed to create backup: {e}")
 
-        print(f"   Writing {len(final_list)} rules...")
-        os.makedirs(os.path.dirname(new_filename), exist_ok=True)
-        with open(new_filename, "w") as f:
-            f.write(f"{var_name} = [\n")
-            f.write(f"  # Updated via Automation {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-            for rule in final_list:
-                f.write(format_rule(rule) + "\n")
-            f.write("]\n")
+        if check_mode:
+            print(f"   [DRY RUN] Would write {len(final_list)} rules to -> {new_filename}")
+        else:
+            print(f"   Writing {len(final_list)} rules...")
+            os.makedirs(os.path.dirname(new_filename), exist_ok=True)
+            with open(new_filename, "w") as f:
+                f.write(f"{var_name} = [\n")
+                f.write(f"  # Updated via Automation {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+                for rule in final_list:
+                    f.write(format_rule(rule) + "\n")
+                f.write("]\n")
 
-        print(f"   SUCCESS: Wrote to -> {new_filename}")
+            print(f"   SUCCESS: Wrote to -> {new_filename}")
 
 if __name__ == "__main__":
     args = parse_arguments()
-    merge_nsg_rules(args.excel_file, args.base_rules, args.repo_root, args.apply)
+    merge_nsg_rules(args.excel_file, args.base_rules, args.repo_root, args.apply, args.check)
