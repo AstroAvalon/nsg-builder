@@ -35,6 +35,7 @@ def parse_arguments():
     parser.add_argument("excel_file", nargs="?", help="Path to the Excel request file", default=None)
     parser.add_argument("--base-rules", help="Path to Base Rules Excel file (Applies to ALL subnets)", default=None)
     parser.add_argument("--repo-root", default=".", help="Root directory of the repo")
+    parser.add_argument("--tfvars-dir", default="tfvars", help="Directory containing .tfvars files (relative to repo-root)")
     parser.add_argument("--apply", action="store_true", help="Apply changes directly (overwrite existing files with backup)")
     parser.add_argument("--check", action="store_true", help="Dry run: Check for changes without writing to files.")
     return parser.parse_args()
@@ -85,15 +86,15 @@ def clean_ip(val: str) -> str:
         return "*"
     return RE_WHITESPACE.sub("", str(val)).strip(",")
 
-def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply_changes: bool = False, check_mode: bool = False):
-    tfvars_dir = os.path.join(repo_root, "tfvars")
+def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply_changes: bool = False, check_mode: bool = False, tfvars_dir_name: str = "tfvars"):
+    tfvars_dir = os.path.join(repo_root, tfvars_dir_name)
     if not os.path.exists(tfvars_dir):
-        print(f"Error: Could not find 'tfvars' folder at: {tfvars_dir}")
+        print(f"Error: Could not find '{tfvars_dir_name}' folder at: {tfvars_dir}")
         return
 
     # Load Project Configuration
     print("Loading project configuration...")
-    project_vars_path = os.path.join(repo_root, "tfvars", "project.auto.tfvars")
+    project_vars_path = os.path.join(tfvars_dir, "project.auto.tfvars")
     locals_tf_path = os.path.join(repo_root, "locals.tf")
 
     project_vars = azure_helper.parse_project_tfvars(project_vars_path) if azure_helper else {}
@@ -415,4 +416,4 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply
 
 if __name__ == "__main__":
     args = parse_arguments()
-    merge_nsg_rules(args.excel_file, args.base_rules, args.repo_root, args.apply, args.check)
+    merge_nsg_rules(args.excel_file, args.base_rules, args.repo_root, apply_changes=args.apply, check_mode=args.check, tfvars_dir_name=args.tfvars_dir)

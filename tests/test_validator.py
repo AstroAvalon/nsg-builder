@@ -125,5 +125,18 @@ class TestValidator(unittest.TestCase):
             # Verify Failure
             mock_exit.assert_called_with(1)
 
+    @patch("azure_helper.parse_project_tfvars", return_value={})
+    @patch("azure_helper.parse_subnet_config", return_value={})
+    @patch("validator.find_existing_file")
+    @patch("sys.exit")
+    def test_validate_custom_tfvars_dir(self, mock_exit, mock_find_file, mock_parse_subnet, mock_parse_project):
+        # Setup Mocks
+        self._setup_mock_df([]) # Empty DF
+
+        validator.validate("test.xlsx", None, ".", tfvars_dir_name="custom_tfvars")
+
+        expected_path = os.path.join(".", "custom_tfvars", "project.auto.tfvars")
+        mock_parse_project.assert_called_with(expected_path)
+
 if __name__ == "__main__":
     unittest.main()

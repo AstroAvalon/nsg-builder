@@ -64,10 +64,11 @@ def parse_arguments():
     parser.add_argument("excel_file", nargs="?", help="Path to the Excel request file")
     parser.add_argument("--base-rules", help="Path to Base Rules Excel file", default=None)
     parser.add_argument("--repo-root", default=".", help="Root directory of the repo")
+    parser.add_argument("--tfvars-dir", default="tfvars", help="Directory containing .tfvars files (relative to repo-root)")
     return parser.parse_args()
 
-def find_existing_file(subnet_key: str, repo_root: str) -> Optional[str]:
-    tfvars_dir = os.path.join(repo_root, "tfvars")
+def find_existing_file(subnet_key: str, repo_root: str, tfvars_dir_name: str) -> Optional[str]:
+    tfvars_dir = os.path.join(repo_root, tfvars_dir_name)
     safe_name = RE_ALPHANUMERIC.sub("", str(subnet_key)).lower()
 
     # List all auto.tfvars
@@ -136,10 +137,10 @@ def rules_match(expected: Dict[str, Any], actual: Dict[str, Any]) -> bool:
 
     return True
 
-def validate(excel_file, base_rules_file, repo_root):
+def validate(excel_file, base_rules_file, repo_root, tfvars_dir_name="tfvars"):
     print("Loading Project Context...")
     locals_tf_path = os.path.join(repo_root, "locals.tf")
-    project_vars_path = os.path.join(repo_root, "tfvars", "project.auto.tfvars")
+    project_vars_path = os.path.join(repo_root, tfvars_dir_name, "project.auto.tfvars")
 
     subnet_config = azure_helper.parse_subnet_config(locals_tf_path)
     project_vars = azure_helper.parse_project_tfvars(project_vars_path)
@@ -288,7 +289,7 @@ def validate(excel_file, base_rules_file, repo_root):
         key = expected['subnet_key']
 
         if key not in file_cache:
-            filepath = find_existing_file(key, repo_root)
+            filepath = find_existing_file(key, repo_root, tfvars_dir_name)
             if filepath:
                 with open(filepath, "r") as f:
                     file_cache[key] = azure_helper.parse_hcl_rules(f.read())
@@ -332,4 +333,4 @@ if __name__ == "__main__":
         print("Error: Must provide either excel_file or --base-rules")
         sys.exit(1)
 
-    validate(args.excel_file, args.base_rules, args.repo_root)
+    validate(args.excel_file, args.base_rules, args.repo_root, args.tfvars_dir)

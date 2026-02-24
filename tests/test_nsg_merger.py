@@ -480,6 +480,35 @@ class TestNSGMerger(unittest.TestCase):
 
             self.assertTrue(warning_printed, "Warning for invalid IP was not printed")
 
+    @patch("glob.glob", return_value=[])
+    @patch("azure_helper.parse_project_tfvars")
+    @patch("azure_helper.parse_subnet_config")
+    @patch("nsg_merger.find_existing_file")
+    def test_merge_custom_tfvars_dir(self, mock_find_file, mock_parse_subnet, mock_parse_project, mock_glob):
+        # Mock basics
+        mock_df = MagicMock()
+        mock_pd.read_excel.return_value = mock_df
+        mock_df.columns.str.strip.return_value = ["Azure Subnet Name"]
+
+        # Empty DF to avoid processing rules
+        mock_col = MagicMock()
+        mock_col.dropna.return_value.unique.return_value = []
+        mock_df.__getitem__.return_value = mock_col
+
+        mock_parse_subnet.return_value = {}
+        mock_parse_project.return_value = {}
+
+        with patch("os.path.exists", return_value=True):
+             nsg_merger.merge_nsg_rules("client.xlsx", None, ".", tfvars_dir_name="custom_tfvars")
+
+             # Verify parse_project_tfvars called with custom path
+             expected_path = os.path.join(".", "custom_tfvars", "project.auto.tfvars")
+             mock_parse_project.assert_called_with(expected_path)
+
+             # Verify glob called with custom path
+             expected_glob = os.path.join(".", "custom_tfvars", "*.auto.tfvars")
+             mock_glob.assert_called_with(expected_glob)
+
 
 if __name__ == "__main__":
     unittest.main()
