@@ -35,3 +35,8 @@ terraform.rc
 # Python
 __pycache__/
 *.pyc
+nsg_merger.py
+validator.py
+azure_helper.py
+base_rules.xlsx
+requirements.txt
