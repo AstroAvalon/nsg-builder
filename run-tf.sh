@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-VARS_DIR="./tfvars"
+VARS_DIR="${TFVARS_DIR:-./tfvars}"
 PLAN_FILE="tfplan"
 
 # 1. Check if the vars directory exists
