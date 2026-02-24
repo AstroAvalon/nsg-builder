@@ -170,8 +170,9 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply
         existing_file = find_existing_file(subnet_key, valid_files)
         var_name = f"{RE_ALPHANUMERIC.sub('', str(subnet_key))}_nsg_rules"
 
-        # Merging structure (Priority -> Rule Dict)
-        merged_rules: Dict[int, Dict[str, Any]] = {}
+        # Merging structure: (DirectionShort, Priority) -> Rule Dict
+        # DirectionShort: "IN" or "OUT"
+        merged_rules: Dict[Tuple[str, int], Dict[str, Any]] = {}
 
         # Load Existing Rules
         existing_rules_list = []
@@ -184,7 +185,8 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply
                 if m_var: var_name = m_var.group(1)
 
             for r in existing_rules_list:
-                merged_rules[r['priority']] = r
+                d_short = "IN" if "IN" in str(r.get("direction")).upper() else "OUT"
+                merged_rules[(d_short, r['priority'])] = r
 
             if apply_changes:
                 # Overwrite mode: Use original filename
@@ -200,9 +202,10 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply
             new_filename = os.path.join(tfvars_dir, f"nsg_{clean_name}.auto.tfvars")
             print(f"   Creating NEW file: {os.path.basename(new_filename)}")
 
-        # Track Used Priorities
-        used_priorities_in = {r['priority'] for r in merged_rules.values() if "IN" in str(r.get('direction')).upper()}
-        used_priorities_out = {r['priority'] for r in merged_rules.values() if "OUT" in str(r.get('direction')).upper()}
+        # Track Used Priorities (per direction)
+        # Re-calculated from keys
+        used_priorities_in = {prio for (d, prio) in merged_rules.keys() if d == "IN"}
+        used_priorities_out = {prio for (d, prio) in merged_rules.keys() if d == "OUT"}
         prio_counters = {"IN": START_PRIORITY, "OUT": START_PRIORITY}
 
         # Azure Drift Check
@@ -223,7 +226,10 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply
 
                     for az_rule in azure_rules:
                         is_inbound = "IN" in az_rule.direction.upper()
-                        if az_rule.priority in merged_rules:
+                        d_short = "IN" if is_inbound else "OUT"
+
+                        # Check (Direction, Priority) conflict
+                        if (d_short, az_rule.priority) in merged_rules:
                             continue
 
                         if az_rule.name in existing_rule_names:
@@ -243,7 +249,7 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply
                             "destination_address_prefix": az_rule.destination,
                             "destination_port_range": az_rule.dest_port
                         }
-                        merged_rules[az_rule.priority] = rule_dict
+                        merged_rules[(d_short, az_rule.priority)] = rule_dict
                         if is_inbound: used_priorities_in.add(az_rule.priority)
                         else: used_priorities_out.add(az_rule.priority)
 
@@ -268,8 +274,9 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply
                     prio_val = int(float(row["Priority"]))
             except: pass
 
-            if prio_val and prio_val in merged_rules:
-                existing = merged_rules[prio_val]
+            # Logic 1: Explicit Priority provided
+            if prio_val and (dir_short, prio_val) in merged_rules:
+                existing = merged_rules[(dir_short, prio_val)]
                 is_identical = True
                 comparisons = [
                     ("direction", api_map.get(raw_dir, "Inbound")),
@@ -294,10 +301,47 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply
                     print(f"   Conflict at Priority {prio_val}. Assigning new priority.")
                     prio_val = None
 
+            # Logic 2: No Priority (or conflict) - Check for Semantic Duplicates first
             if not prio_val:
+                duplicate_found = False
+                for r in merged_rules.values():
+                    # Check Direction
+                    r_dir_short = "IN" if "IN" in str(r.get("direction")).upper() else "OUT"
+                    if r_dir_short != dir_short:
+                        continue
+
+                    # Semantic Comparison
+                    comparisons = [
+                        ("access", api_map.get(str(row["Access"]).upper().strip(), "Allow")),
+                        ("protocol", api_map.get(str(row["Protocol"]).upper().strip(), "Tcp")),
+                        ("source_address_prefix", clean_ip(row['Source'])),
+                        ("destination_address_prefix", clean_ip(row['Destination'])),
+                        ("destination_port_range", clean_port(row['Destination Port'])),
+                        # Assume source port is *
+                    ]
+
+                    is_match = True
+                    for key, val in comparisons:
+                        existing_val = r.get(key)
+                        if str(existing_val).strip().lower() != str(val).strip().lower():
+                            is_match = False
+                            break
+
+                    if is_match:
+                        # Found a duplicate!
+                        duplicate_found = True
+                        break
+
+                if duplicate_found:
+                    # print(f"   Skipping Duplicate Request (already exists)")
+                    continue
+
+                # Logic 3: Assign New Priority
                 target_set = used_priorities_in if is_inbound else used_priorities_out
-                while prio_counters[dir_short] in target_set or prio_counters[dir_short] in merged_rules:
+                # Keep incrementing if priority exists in THIS direction's merged rules
+                while (dir_short, prio_counters[dir_short]) in merged_rules:
                     prio_counters[dir_short] += PRIORITY_STEP
+
                 prio_val = prio_counters[dir_short]
                 prio_counters[dir_short] += PRIORITY_STEP
 
@@ -313,7 +357,7 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply
                     if ip.strip() and not azure_helper.validate_address_prefix(ip.strip()):
                         print(f"⚠️  WARNING: Rule '{prio_val}' has potentially invalid Destination '{ip}'. Please review manually.")
 
-            merged_rules[prio_val] = {
+            merged_rules[(dir_short, prio_val)] = {
                 "name": f"{RE_ALPHANUMERIC.sub('', str(subnet_key))}_{dir_short}_{api_map.get(str(row['Access']).upper().strip(), 'Allow')}{prio_val}",
                 "description": str(row['Description'])[:100],
                 "priority": prio_val,
@@ -354,10 +398,10 @@ def merge_nsg_rules(excel_path: str, base_rules_path: str, repo_root: str, apply
                 src_clean = clean_ip(row['Source']).replace("{{CurrentSubnet}}", current_cidr).replace("{{VNetCIDR}}", vnet_cidr)
                 dst_clean = clean_ip(row['Destination']).replace("{{CurrentSubnet}}", current_cidr).replace("{{VNetCIDR}}", vnet_cidr)
 
-                if prio_val in merged_rules:
+                if (dir_short, prio_val) in merged_rules:
                     print(f"   Base Rule Overwriting Priority {prio_val}")
 
-                merged_rules[prio_val] = {
+                merged_rules[(dir_short, prio_val)] = {
                     "name": f"{RE_ALPHANUMERIC.sub('', str(subnet_key))}_{dir_short}_{api_map.get(str(row['Access']).upper().strip(), 'Allow')}{prio_val}",
                     "description": str(row['Description'])[:100],
                     "priority": prio_val,
