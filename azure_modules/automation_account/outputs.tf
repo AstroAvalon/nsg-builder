@@ -1,16 +1,16 @@
 output "id" {
   description = "The ID of the Automation Account."
-  value       = azurerm_automation_account.this.id
+  value       = azurerm_automation_account.account.id
 }
 
 output "name" {
   description = "The name of the Automation Account."
-  value       = azurerm_automation_account.this.name
+  value       = azurerm_automation_account.account.name
 }
 
 output "identity" {
   description = "The Managed Identity configuration of the Automation Account."
-  value       = azurerm_automation_account.this.identity
+  value       = azurerm_automation_account.account.identity
 }
 
 output "private_endpoint_ip" {

@@ -7,7 +7,7 @@ terraform {
   }
 }
 
-resource "azurerm_automation_account" "this" {
+resource "azurerm_automation_account" "account" {
   name                = var.name
   location            = var.location
   resource_group_name = var.resource_group_name
@@ -21,13 +21,13 @@ resource "azurerm_automation_account" "this" {
   tags = var.tags
 }
 
-resource "azurerm_automation_runbook" "this" {
+resource "azurerm_automation_runbook" "runbook" {
   for_each = var.runbooks
 
   name                    = each.key
   location                = var.location
   resource_group_name     = var.resource_group_name
-  automation_account_name = azurerm_automation_account.this.name
+  automation_account_name = azurerm_automation_account.account.name
   log_verbose             = true
   log_progress            = true
   description             = each.value.description
@@ -46,7 +46,7 @@ resource "azurerm_private_endpoint" "pep" {
 
   private_service_connection {
     name                           = "psc-${var.name}"
-    private_connection_resource_id = azurerm_automation_account.this.id
+    private_connection_resource_id = azurerm_automation_account.account.id
     is_manual_connection           = false
     subresource_names              = ["Webhook"] # Used for Webhooks and Runbook execution
   }
