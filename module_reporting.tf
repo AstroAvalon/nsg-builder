@@ -8,6 +8,9 @@ module "automation_account" {
   subnet_id           = module.subnets["AppPrivateLink"].id
   private_dns_zone_ids = [module.private_dns.primary_zone_ids["privatelink.azure-automation.net"]]
 
+  report_storage_account_id   = module.logic_app.storage_account_id
+  report_storage_account_name = module.logic_app.storage_account_name
+
   runbooks = {
     "Generate-MonthlyReport" = {
       runbook_type = "PowerShell"
@@ -32,9 +35,6 @@ module "communication_service" {
   resource_group_name = module.resource_groups["reporting"].name
   location            = var.region_codes[var.project.location] # For PE
   data_location       = "United States" # ACS data location
-
-  subnet_id           = module.subnets["AppPrivateLink"].id
-  private_dns_zone_ids = [module.private_dns.primary_zone_ids["privatelink.communication.azure.com"]]
 
   tags = {
     Environment = var.project.environment_level

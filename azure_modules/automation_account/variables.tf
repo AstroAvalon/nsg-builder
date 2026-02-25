@@ -51,3 +51,13 @@ variable "enable_public_network_access" {
   type        = bool
   default     = false
 }
+
+variable "report_storage_account_id" {
+  description = "The ID of the Storage Account for reports."
+  type        = string
+}
+
+variable "report_storage_account_name" {
+  description = "The Name of the Storage Account for reports."
+  type        = string
+}

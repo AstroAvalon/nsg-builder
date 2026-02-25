@@ -30,17 +30,6 @@ variable "domain_name" {
   default     = "AzureManagedDomain"
 }
 
-variable "subnet_id" {
-  description = "The ID of the Subnet for the Private Endpoint."
-  type        = string
-}
-
-variable "private_dns_zone_ids" {
-  description = "A list of Private DNS Zone IDs for the Private Endpoint integration."
-  type        = list(string)
-  default     = []
-}
-
 variable "tags" {
   description = "A mapping of tags to assign to the resource."
   type        = map(string)

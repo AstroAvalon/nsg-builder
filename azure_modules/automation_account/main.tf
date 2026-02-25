@@ -7,6 +7,8 @@ terraform {
   }
 }
 
+data "azurerm_subscription" "current" {}
+
 resource "azurerm_automation_account" "account" {
   name                = var.name
   location            = var.location
@@ -36,6 +38,34 @@ resource "azurerm_automation_runbook" "runbook" {
   content = each.value.content
 
   tags = var.tags
+}
+
+resource "azurerm_automation_module" "importexcel" {
+  name                    = "ImportExcel"
+  resource_group_name     = var.resource_group_name
+  automation_account_name = azurerm_automation_account.account.name
+  module_link {
+    uri = "https://www.powershellgallery.com/api/v2/package/ImportExcel"
+  }
+}
+
+resource "azurerm_automation_variable_string" "report_storage_account" {
+  name                    = "ReportStorageAccountName"
+  resource_group_name     = var.resource_group_name
+  automation_account_name = azurerm_automation_account.account.name
+  value                   = var.report_storage_account_name
+}
+
+resource "azurerm_role_assignment" "reader" {
+  scope                = data.azurerm_subscription.current.id
+  role_definition_name = "Reader"
+  principal_id         = azurerm_automation_account.account.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "storage_contributor" {
+  scope                = var.report_storage_account_id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_automation_account.account.identity[0].principal_id
 }
 
 resource "azurerm_private_endpoint" "pep" {
