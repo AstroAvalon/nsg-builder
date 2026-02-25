@@ -27,6 +27,12 @@ resource "azurerm_storage_account" "sa" {
   tags = var.tags
 }
 
+resource "azurerm_storage_container" "reports" {
+  name                  = "reports"
+  storage_account_name  = azurerm_storage_account.sa.name
+  container_access_type = "private"
+}
+
 resource "azurerm_logic_app_standard" "logic_app" {
   name                       = var.name
   location                   = var.location

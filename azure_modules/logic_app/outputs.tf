@@ -23,6 +23,11 @@ output "storage_account_id" {
   value       = azurerm_storage_account.sa.id
 }
 
+output "storage_account_name" {
+  description = "The Name of the Logic App Storage Account."
+  value       = azurerm_storage_account.sa.name
+}
+
 output "private_endpoint_ip" {
   description = "The Private IP of the Logic App Private Endpoint."
   value       = azurerm_private_endpoint.pep.private_service_connection[0].private_ip_address
