@@ -14,7 +14,8 @@ module "private_dns" {
     "privatelink.file.core.windows.net",
     "privatelink.azure-automation.net",
     "privatelink.azurewebsites.net",
-    "privatelink.communication.azure.com"
+    "privatelink.communication.azure.com",
+    "privatelink.backup.windowsazure.com",
   ]
 
   tags = {
