@@ -15,9 +15,10 @@ module "subnets" {
 
   # New functionalities: Service Endpoints & Delegations
   service_endpoints     = try(each.value.service_endpoints, [])
-  aks_delegation        = try(each.value.aks_delegation, false)
-  databricks_delegation = try(each.value.databricks_delegation, false)
-  postgres_delegation   = try(each.value.postgres_delegation, false)
+  aks_delegation         = try(each.value.aks_delegation, false)
+  databricks_delegation  = try(each.value.databricks_delegation, false)
+  postgres_delegation    = try(each.value.postgres_delegation, false)
+  app_service_delegation = try(each.value.app_service_delegation, false)
 
   # Private Endpoint Network Policies is defaulted to "Enabled" in module variables,
   # but we can pass it explicitly if needed. Relying on default for now.

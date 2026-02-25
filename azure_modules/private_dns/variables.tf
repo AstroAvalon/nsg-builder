@@ -24,3 +24,9 @@ variable "secondary_resource_group_name" {
   type        = string
   default     = null
 }
+
+variable "dns_zone_names" {
+  description = "A list of Private DNS Zone names to create."
+  type        = list(string)
+  default     = []
+}

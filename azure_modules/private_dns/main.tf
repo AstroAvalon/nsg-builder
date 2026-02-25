@@ -1,17 +1,6 @@
-locals {
-  # List of Private DNS Zones to create
-  dns_zones = toset([
-    "privatelink.vaultcore.azure.net",
-    "privatelink.blob.core.windows.net",
-    "privatelink.table.core.windows.net",
-    "privatelink.queue.core.windows.net",
-    "privatelink.file.core.windows.net"
-  ])
-}
-
 # 1. Create Private DNS Zones (Primary)
 resource "azurerm_private_dns_zone" "primary" {
-  for_each            = local.dns_zones
+  for_each            = toset(var.dns_zone_names)
   name                = each.value
   resource_group_name = var.resource_group_name
   tags                = var.tags
@@ -19,7 +8,7 @@ resource "azurerm_private_dns_zone" "primary" {
 
 # 2. Link Primary Zones to VNet
 resource "azurerm_private_dns_zone_virtual_network_link" "primary_link" {
-  for_each              = local.dns_zones
+  for_each              = toset(var.dns_zone_names)
   name                  = "link-primary-${replace(each.value, ".", "-")}"
   resource_group_name   = var.resource_group_name
   private_dns_zone_name = azurerm_private_dns_zone.primary[each.key].name
@@ -38,7 +27,7 @@ resource "azurerm_resource_group" "secondary" {
 
 # 4. Create Private DNS Zones (Secondary)
 resource "azurerm_private_dns_zone" "secondary" {
-  for_each            = local.dns_zones
+  for_each            = toset(var.dns_zone_names)
   name                = each.value
   resource_group_name = azurerm_resource_group.secondary.name
   tags                = var.tags

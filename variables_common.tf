@@ -5,6 +5,7 @@ variable "resource_group_names" {
     compute = ""
     network = "network"
     mgmt    = "mgmt"
+    reporting = "reporting"
   }
 }
 
