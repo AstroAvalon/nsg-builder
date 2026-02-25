@@ -17,6 +17,16 @@ resource "azurerm_service_plan" "asp" {
   tags = var.tags
 }
 
+resource "azurerm_eventgrid_system_topic" "egst" {
+  name                   = "egst-${var.name}"
+  location               = var.location
+  resource_group_name    = var.resource_group_name
+  source_arm_resource_id = azurerm_storage_account.sa.id
+  topic_type             = "Microsoft.Storage.StorageAccounts"
+
+  tags = var.tags
+}
+
 resource "azurerm_storage_account" "sa" {
   name                     = var.storage_account_name
   resource_group_name      = var.resource_group_name

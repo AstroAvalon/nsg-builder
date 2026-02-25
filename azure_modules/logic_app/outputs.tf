@@ -32,3 +32,8 @@ output "private_endpoint_ip" {
   description = "The Private IP of the Logic App Private Endpoint."
   value       = azurerm_private_endpoint.pep.private_service_connection[0].private_ip_address
 }
+
+output "eventgrid_system_topic_id" {
+  description = "The ID of the Event Grid System Topic."
+  value       = azurerm_eventgrid_system_topic.egst.id
+}
