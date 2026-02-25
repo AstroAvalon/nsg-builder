@@ -18,7 +18,7 @@ locals {
     AppBudgetBooks = { name = "AppBudgetBooks", newbits = 5, netnum = 12, has_nsg = true  }
     AppTestSavvy   = { name = "AppTestSavvy",   newbits = 4, netnum = 8,  has_nsg = true  }
     AppMGMTTools   = { name = "AppMGMTTools",   newbits = 4, netnum = 10, has_nsg = true  }
-    AppReporting   = { name = "AppReporting",   newbits = 4, netnum = 12, has_nsg = true  }
+    AppReporting   = { name = "AppReporting",   newbits = 4, netnum = 12, has_nsg = true, app_service_delegation = true }
   }
 
   # 3. Calculate CIDRs dynamically using newbits and netnum

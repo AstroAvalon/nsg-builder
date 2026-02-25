@@ -44,6 +44,17 @@ resource "azurerm_subnet" "subnet" {
       }
     }
   }
+
+  dynamic "delegation" {
+    for_each = var.app_service_delegation ? [1] : []
+    content {
+      name = "app-service-delegation"
+      service_delegation {
+        name    = "Microsoft.Web/serverFarms"
+        actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
+      }
+    }
+  }
 }
 
 # 2. Create the NSG (Only if a name is provided)

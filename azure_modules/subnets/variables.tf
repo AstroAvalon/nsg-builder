@@ -47,6 +47,12 @@ variable "aks_delegation" {
   default     = false
 }
 
+variable "app_service_delegation" {
+  description = "Enable delegation for App Service Plans (Logic Apps, Function Apps)."
+  type        = bool
+  default     = false
+}
+
 variable "databricks_delegation" {
   description = "Enable delegation for Azure Databricks."
   type        = bool
