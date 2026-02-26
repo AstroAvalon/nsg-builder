@@ -18,11 +18,11 @@ resource "azurerm_service_plan" "asp" {
 }
 
 resource "azurerm_eventgrid_system_topic" "egst" {
-  name                   = "egst-${var.name}"
-  location               = var.location
-  resource_group_name    = var.resource_group_name
-  source_arm_resource_id = azurerm_storage_account.sa.id
-  topic_type             = "Microsoft.Storage.StorageAccounts"
+  name                = "egst-${var.name}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  source_resource_id  = azurerm_storage_account.sa.id
+  topic_type          = "Microsoft.Storage.StorageAccounts"
 
   tags = var.tags
 }
@@ -54,6 +54,10 @@ resource "azurerm_logic_app_standard" "logic_app" {
   virtual_network_subnet_id = var.subnet_id_integration
 
   app_settings = var.app_settings
+
+  site_config {
+    dotnet_framework_version = "v6.0"
+  }
 
   identity {
     type = "SystemAssigned"
