@@ -39,9 +39,10 @@ variable "private_dns_zone_ids" {
 variable "runbooks" {
   description = "A map of runbooks to create. Key is runbook name, value is configuration."
   type = map(object({
-    runbook_type = string
-    content      = string
-    description  = optional(string)
+    runbook_type    = string
+    runtime_version = optional(string)
+    content         = string
+    description     = optional(string)
   }))
   default = {}
 }

@@ -34,13 +34,14 @@ resource "azurerm_automation_runbook" "runbook" {
   log_progress            = true
   description             = each.value.description
   runbook_type            = each.value.runbook_type
+  runtime_version         = each.value.runtime_version
 
   content = each.value.content
 
   tags = var.tags
 }
 
-resource "azurerm_automation_module" "importexcel" {
+resource "azurerm_automation_powershell72_module" "importexcel" {
   name                    = "ImportExcel"
   resource_group_name     = var.resource_group_name
   automation_account_name = azurerm_automation_account.account.name
