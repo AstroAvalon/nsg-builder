@@ -58,6 +58,16 @@ module "logic_app" {
   # Logic App Standard uses blob/file/queue/table storage, but the PE for Logic App (sites) uses azurewebsites.net
   private_dns_zone_ids  = [module.private_dns.primary_zone_ids["privatelink.azurewebsites.net"]]
 
+  use_32_bit_worker_process = false
+
+  app_settings = {
+    "FUNCTIONS_WORKER_RUNTIME"                        = "dotnet"
+    "FUNCTIONS_EXTENSION_VERSION"                     = "~4"
+    "APP_KIND"                                        = "workflowApp"
+    "AzureFunctionsJobHost__extensionBundle__id"      = "Microsoft.Azure.Functions.ExtensionBundle.Workflows"
+    "AzureFunctionsJobHost__extensionBundle__version" = "[1.*, 2.0.0)"
+  }
+
   tags = {
     Environment = var.project.environment_level
     Client      = var.project.client_code

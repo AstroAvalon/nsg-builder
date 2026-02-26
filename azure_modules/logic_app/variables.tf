@@ -62,3 +62,9 @@ variable "app_settings" {
   type        = map(string)
   default     = {}
 }
+
+variable "use_32_bit_worker_process" {
+  description = "If true, run the logic app as a 32-bit process. If false, run as 64-bit."
+  type        = bool
+  default     = true
+}

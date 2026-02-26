@@ -56,7 +56,8 @@ resource "azurerm_logic_app_standard" "logic_app" {
   app_settings = var.app_settings
 
   site_config {
-    dotnet_framework_version = "v6.0"
+    dotnet_framework_version  = "v6.0"
+    use_32_bit_worker_process = var.use_32_bit_worker_process
   }
 
   identity {
