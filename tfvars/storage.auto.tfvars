@@ -30,28 +30,10 @@ Other useful information:
 
 storage_account_config = [
     {
-        name                            = "saunquenamefs100"
-        account_kind                    = "FileStorage"
-        account_tier                    = "Premium"
-        account_replication_type        = "LRS"
-        access_tier                     = "Hot"
-        enable_https_traffic_only       = "false"
-        enable_cross_tenant_replication = "true"
-        enable_hns                      = false
-        nfsv3_enabled                   = false
-        disable_access_keys             = false
-        create_blob_endpoint            = false
-        create_file_endpoint            = true
-        create_dfs_endpoint             = false
-        create_table_endpoint           = false
-        create_queue_endpoint           = false
-        containers                     = ["saunquenamefs100"]
-    },
-    {
-        name                            = "saunquename100"
+        name                            = "stlabastrowus3nprdrpt"
         account_kind                    = "StorageV2"
         account_tier                    = "Standard"
-        account_replication_type        = "RAGRS"
+        account_replication_type        = "LRS"
         access_tier                     = "Hot"
         enable_https_traffic_only       = "true"
         enable_cross_tenant_replication = "true"
@@ -63,6 +45,7 @@ storage_account_config = [
         create_dfs_endpoint             = false
         create_table_endpoint           = false
         create_queue_endpoint           = false
-        containers                     = ["saunquename100-backups"]
+        containers                     = ["reports"]
+        public_network_access_enabled   = true
     }
 ]

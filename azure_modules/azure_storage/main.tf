@@ -23,7 +23,7 @@ resource "azurerm_storage_account" "account" {
   is_hns_enabled                      = each.value.enable_hns != null ? each.value.enable_hns : false
   nfsv3_enabled                       = each.value.nfsv3_enabled != null ? each.value.nfsv3_enabled : false
   cross_tenant_replication_enabled    = each.value.enable_cross_tenant_replication != null ? each.value.enable_cross_tenant_replication : false
-  public_network_access_enabled       = false
+  public_network_access_enabled       = each.value.public_network_access_enabled
   allow_nested_items_to_be_public     = false
   infrastructure_encryption_enabled   = true
 
