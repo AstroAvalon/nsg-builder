@@ -62,10 +62,6 @@ module "logic_app" {
 
   app_settings = {
     "FUNCTIONS_WORKER_RUNTIME"                        = "dotnet"
-    "FUNCTIONS_EXTENSION_VERSION"                     = "~4"
-    "APP_KIND"                                        = "workflowApp"
-    "AzureFunctionsJobHost__extensionBundle__id"      = "Microsoft.Azure.Functions.ExtensionBundle.Workflows"
-    "AzureFunctionsJobHost__extensionBundle__version" = "[1.*, 2.0.0)"
   }
 
   tags = {

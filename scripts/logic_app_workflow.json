@@ -114,11 +114,11 @@
                         "recipients": {
                             "to": [
                                 {
-                                    "email": "replace_me@example.com"
+                                    "email": "josephlkirby@proton.me"
                                 }
                             ]
                         },
-                        "senderAddress": "DoNotReply@<YOUR_DOMAIN_HERE>",
+                        "senderAddress": "DoNotReply@372f6a3e-94af-486c-89f7-e8ab8d957205.azurecomm.net",
                         "attachments": [
                             {
                                 "name": "Report.xlsx",
