@@ -24,8 +24,3 @@ output "primary_key" {
   value       = azurerm_communication_service.acs.primary_key
   sensitive   = true
 }
-
-output "private_endpoint_ip" {
-  description = "The Private IP of the Communication Service Private Endpoint."
-  value       = azurerm_private_endpoint.pep.private_service_connection[0].private_ip_address
-}

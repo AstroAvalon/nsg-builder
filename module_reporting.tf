@@ -63,3 +63,17 @@ module "logic_app" {
     Client      = var.project.client_code
   }
 }
+
+# Grant Logic App access to read/write blobs in its storage account (where reports are)
+resource "azurerm_role_assignment" "logic_app_storage" {
+  scope                = module.logic_app.storage_account_id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = module.logic_app.principal_id
+}
+
+# Grant Logic App access to send emails via ACS
+resource "azurerm_role_assignment" "logic_app_acs" {
+  scope                = module.communication_service.id
+  role_definition_name = "Contributor"
+  principal_id         = module.logic_app.principal_id
+}
