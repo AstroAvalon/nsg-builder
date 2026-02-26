@@ -164,13 +164,13 @@ resource "azurerm_private_dns_a_record" "secondary" {
   records             = [azurerm_private_endpoint.pep[each.key].private_service_connection[0].private_ip_address]
 }
 
-resource "azurerm_private_dns_a_record" "tertiary" {
-  provider = azurerm.management
-  for_each = local.endpoints_map
+# resource "azurerm_private_dns_a_record" "tertiary" {
+#   provider = azurerm.management
+#   for_each = local.endpoints_map
 
-  name                = each.value.storage_account_name
-  zone_name           = local.dns_zone_names[each.value.service_name]
-  resource_group_name = var.dns_zones[each.value.service_name].tertiary_rg
-  ttl                 = 300
-  records             = [azurerm_private_endpoint.pep[each.key].private_service_connection[0].private_ip_address]
-}
+#   name                = each.value.storage_account_name
+#   zone_name           = local.dns_zone_names[each.value.service_name]
+#   resource_group_name = var.dns_zones[each.value.service_name].tertiary_rg
+#   ttl                 = 300
+#   records             = [azurerm_private_endpoint.pep[each.key].private_service_connection[0].private_ip_address]
+# }

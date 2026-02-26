@@ -45,7 +45,7 @@ variable "dns_zones" {
   description = "Map of DNS zone configurations for each service (blob, file, dfs, queue, table)"
   type = map(object({
     ids           = list(string)
-    secondary_rg  = string
-    tertiary_rg   = string
+    secondary_rg  = optional(string)
+    tertiary_rg   = optional(string)
   }))
 }
