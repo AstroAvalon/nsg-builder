@@ -13,10 +13,9 @@ module "automation_account" {
 
   runbooks = {
     "Generate-MonthlyReport" = {
-      runbook_type    = "PowerShell"
-      runtime_version = "7.2"
-      content         = file("${path.module}/scripts/generate_report.ps1")
-      description     = "Generates monthly usage and cost report."
+      runbook_type = "PowerShell72"
+      content      = file("${path.module}/scripts/generate_report.ps1")
+      description  = "Generates monthly usage and cost report."
     }
   }
 
