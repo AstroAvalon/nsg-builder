@@ -1,0 +1,140 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "contentVersion": "1.0.0.0",
+        "triggers": {
+            "When_a_resource_event_occurs": {
+                "type": "Request",
+                "kind": "Http",
+                "inputs": {
+                    "schema": {
+                        "properties": {
+                            "data": {
+                                "properties": {
+                                    "api": {
+                                        "type": "string"
+                                    },
+                                    "clientRequestId": {
+                                        "type": "string"
+                                    },
+                                    "requestId": {
+                                        "type": "string"
+                                    },
+                                    "eTag": {
+                                        "type": "string"
+                                    },
+                                    "contentType": {
+                                        "type": "string"
+                                    },
+                                    "contentLength": {
+                                        "type": "integer"
+                                    },
+                                    "blobType": {
+                                        "type": "string"
+                                    },
+                                    "url": {
+                                        "type": "string"
+                                    },
+                                    "sequencer": {
+                                        "type": "string"
+                                    },
+                                    "storageDiagnostics": {
+                                        "properties": {
+                                            "batchId": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "type": "object"
+                            },
+                            "dataVersion": {
+                                "type": "string"
+                            },
+                            "eventTime": {
+                                "type": "string"
+                            },
+                            "eventType": {
+                                "type": "string"
+                            },
+                            "id": {
+                                "type": "string"
+                            },
+                            "metadataVersion": {
+                                "type": "string"
+                            },
+                            "subject": {
+                                "type": "string"
+                            },
+                            "topic": {
+                                "type": "string"
+                            }
+                        },
+                        "type": "object"
+                    }
+                }
+            }
+        },
+        "actions": {
+            "Get_blob_content_(V2)": {
+                "runAfter": {},
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['azureblob']['connectionId']"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files/@{encodeURIComponent(encodeURIComponent(split(triggerBody()?['data']?['url'], '.net/')[1]))}/content",
+                    "authentication": "@parameters('$authentication')"
+                }
+            },
+            "Send_email_(preview)": {
+                "runAfter": {
+                    "Get_blob_content_(V2)": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['azurecommunication']['connectionId']"
+                        }
+                    },
+                    "method": "post",
+                    "body": {
+                        "content": {
+                            "subject": "New Monthly Report",
+                            "html": "<p>A new report has been uploaded to the storage account.</p>",
+                            "plainText": "A new report has been uploaded to the storage account."
+                        },
+                        "recipients": {
+                            "to": [
+                                {
+                                    "email": "replace_me@example.com"
+                                }
+                            ]
+                        },
+                        "senderAddress": "DoNotReply@<YOUR_DOMAIN_HERE>",
+                        "attachments": [
+                            {
+                                "name": "Report.xlsx",
+                                "contentBytes": "@{base64(body('Get_blob_content_(V2)'))}",
+                                "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            }
+                        ]
+                    },
+                    "path": "/emails:send",
+                    "queries": {
+                        "api-version": "2023-03-31"
+                    }
+                }
+            }
+        },
+        "outputs": {}
+    },
+    "kind": "Stateful"
+}
