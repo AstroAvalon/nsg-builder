@@ -35,9 +35,25 @@ resource "azurerm_automation_runbook" "runbook" {
   description             = each.value.description
   runbook_type            = each.value.runbook_type
 
-  content = each.value.content
-
   tags = var.tags
+}
+
+resource "azurerm_automation_source_control" "sc-repo" {
+  name                    = "sc-repo"
+  automation_account_id   = azurerm_automation_account.account.id
+  folder_path             = var.folder_path
+
+  repository_url          = var.repository_url
+  source_control_type     = "VsoGit"
+  branch                  = var.branch
+
+  automatic_sync          = true
+  publish_runbook_enabled = true
+
+  security {
+    token      = var.devops_pat
+    token_type = "PersonalAccessToken"
+  }
 }
 
 resource "azurerm_automation_powershell72_module" "importexcel" {

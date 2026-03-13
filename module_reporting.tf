@@ -11,10 +11,15 @@ module "automation_account" {
   report_storage_account_id   = module.azure_storage.storage_accounts["stlabastrowus3nprdrpt"].id
   report_storage_account_name = module.azure_storage.storage_accounts["stlabastrowus3nprdrpt"].name
 
+  # Source Control Integration parameters
+  devops_pat     = "dummy_pat_value"
+  repository_url = "https://dev.azure.com/dummy/dummyrepo/_git/dummyrepo"
+  branch         = "main"
+  folder_path    = "scripts"
+
   runbooks = {
     "Generate-MonthlyReport" = {
       runbook_type = "PowerShell72"
-      content      = file("${path.module}/scripts/generate_report.ps1")
       description  = "Generates monthly usage and cost report."
     }
   }

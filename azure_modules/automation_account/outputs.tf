@@ -17,3 +17,8 @@ output "private_endpoint_ip" {
   description = "The Private IP of the Private Endpoint."
   value       = azurerm_private_endpoint.pep.private_service_connection[0].private_ip_address
 }
+
+output "source_control_id" {
+  description = "The ID of the Automation Source Control."
+  value       = azurerm_automation_source_control.sc-repo.id
+}

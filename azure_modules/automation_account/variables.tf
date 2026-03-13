@@ -40,10 +40,31 @@ variable "runbooks" {
   description = "A map of runbooks to create. Key is runbook name, value is configuration."
   type = map(object({
     runbook_type = string
-    content      = string
     description  = optional(string)
   }))
   default = {}
+}
+
+variable "devops_pat" {
+  description = "The Personal Access Token for Azure DevOps integration."
+  type        = string
+  sensitive   = true
+}
+
+variable "repository_url" {
+  description = "The URL of the Azure DevOps repository."
+  type        = string
+}
+
+variable "branch" {
+  description = "The branch to sync from the source control."
+  type        = string
+  default     = "main"
+}
+
+variable "folder_path" {
+  description = "The folder path in the repository that contains the runbooks."
+  type        = string
 }
 
 variable "enable_public_network_access" {
